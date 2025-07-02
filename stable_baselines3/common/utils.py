@@ -626,7 +626,7 @@ def get_system_info(print_info: bool = True) -> tuple[dict[str, str], str]:
         "Gymnasium": gym.__version__,
     }
     try:
-        import gym as openai_gym
+        import gymnasium as openai_gym
 
         env_info.update({"OpenAI Gym": openai_gym.__version__})
     except ImportError:

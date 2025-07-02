@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import warnings
 from typing import Any, ClassVar, Optional, TypeVar, Union
 
@@ -15,11 +19,9 @@ from stable_baselines3.dqn.policies import CnnPolicy, DQNPolicy, MlpPolicy, Mult
 
 SelfDQN = TypeVar("SelfDQN", bound="DQN")
 
-
 class DQN(OffPolicyAlgorithm):
     """
     Deep Q-Network (DQN)
-
     Paper: https://arxiv.org/abs/1312.5602, https://www.nature.com/articles/nature14236
     Default hyperparameters are taken from the Nature paper,
     except for the optimizer and learning rate that were taken from Stable Baselines defaults.
@@ -142,6 +144,7 @@ class DQN(OffPolicyAlgorithm):
 
         if _init_setup_model:
             self._setup_model()
+      
 
     def _setup_model(self) -> None:
         super()._setup_model()
