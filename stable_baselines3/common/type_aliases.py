@@ -69,6 +69,11 @@ class RolloutReturn(NamedTuple):
     episode_timesteps: int
     n_episodes: int
     continue_training: bool
+    #extra stuff for no_buffer, if it doesn't work imma crashout
+    observation: th.Tensor = None
+    next_observation: th.Tensor = None
+    reward: Any = None
+    done: Any = None
 
 
 class TrainFrequencyUnit(Enum):
