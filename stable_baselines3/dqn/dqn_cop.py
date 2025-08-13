@@ -13,7 +13,7 @@ from torch.nn import functional as F
 from stable_baselines3.common.noise import ActionNoise, VectorizedActionNoise
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, RolloutReturn, Schedule, TrainFreq, TrainFrequencyUnit
 from stable_baselines3.common.vec_env import VecEnv
-from stable_baselines3.common.buffers import ReplayBuffer
+from stable_baselines3.common.buffers import ReplayBuffer, PrioritizedReplayBuffer
 from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
 from stable_baselines3.common.policies import BasePolicy
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
@@ -109,6 +109,9 @@ class DQN(OffPolicyAlgorithm):
         _init_setup_model: bool = True,
         use_second_net: bool = True,
         use_buffer: bool = True,
+        prio_replay: bool = False,
+        exponent_a: Optional[float] = None,
+        exponent_B: Optional[float] = None,
     ) -> None:
         super().__init__(
             policy,
@@ -139,19 +142,26 @@ class DQN(OffPolicyAlgorithm):
 
         self.use_second_net = use_second_net
         self.use_buffer = use_buffer
+        self.prio_replay = prio_replay
         self.exploration_initial_eps = exploration_initial_eps
         self.exploration_final_eps = exploration_final_eps
         self.exploration_fraction = exploration_fraction
         self.target_update_interval = target_update_interval
+        self.exponent_a = exponent_a
+        self.exponent_B = exponent_B
         # For updating the target network with multiple envs:
         self._n_calls = 0
         self.max_grad_norm = max_grad_norm
         # "epsilon" for the epsilon-greedy exploration
         self.exploration_rate = 0.0
 
+        #Switching to the prioritized buffer instead of the default replay buffer
+        if self.prio_replay: self.replay_buffer_class = PrioritizedReplayBuffer   
+
         if _init_setup_model:
             self._setup_model()
-      
+
+        
 
     def _setup_model(self) -> None:
         super()._setup_model()
@@ -204,11 +214,10 @@ class DQN(OffPolicyAlgorithm):
         self._update_learning_rate(self.policy.optimizer)
 
         losses = []
-        helper_loss = []
-
+        weights = 0
         for _ in range(gradient_steps):
             # Sample replay buffer
-            replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)  # type: ignore[union-attr]
+            replay_data = self.replay_buffer.sample(batch_size, self.exponent_a, env=self._vec_normalize_env)  # type: ignore[union-attr]
             # For n-step replay, discount factor is gamma**n_steps (when no early termination)
             discounts = replay_data.discounts if replay_data.discounts is not None else self.gamma
             with th.no_grad():
@@ -218,7 +227,7 @@ class DQN(OffPolicyAlgorithm):
                 next_q_values, _ = next_q_values.max(dim=1)
                 # Avoid potential broadcast issue
                 next_q_values = next_q_values.reshape(-1, 1)
-                # 1-step TD target
+                # 1-step TD target  
                 target_q_values = replay_data.rewards + (1 - replay_data.dones) * discounts * next_q_values
             self.policy.set_training_mode(True)    
 
@@ -228,9 +237,20 @@ class DQN(OffPolicyAlgorithm):
             # Retrieve the q-values for the actions from the replay buffer
             current_q_values = th.gather(current_q_values, dim=1, index=replay_data.actions.long())
 
-            helper_loss.append(abs(target_q_values - current_q_values))
-            # Compute Huber loss (less sensitive to outliers)
-            loss = F.smooth_l1_loss(current_q_values, target_q_values)
+            #TODO: Check this again
+            if self.prio_replay:
+                #Calculate weight
+                weights_unormalized: np.ndarray = (self.buffer_size * self.replay_buffer.batch_prob()) ** (-self.exponent_B)
+                weights: np.ndarray = weights_unormalized / weights_unormalized.max()
+                #Compute the TD-error in case of using PrioritizedReplayBuffer
+                td_error = target_q_values - current_q_values
+                self.replay_buffer.update(td_error.detach().cpu().numpy())
+
+
+            loss_per_sample = F.smooth_l1_loss(current_q_values, target_q_values, reduction='none') * th.from_numpy(weights).float().to(self.device)
+
+            # Compute Huber loss (less sensitive to outliers)           
+            loss = loss_per_sample.sum() if self.prio_replay else F.smooth_l1_loss(current_q_values, target_q_values)
             losses.append(loss.item())
 
             # Optimize the policy
@@ -279,7 +299,6 @@ class DQN(OffPolicyAlgorithm):
     
     #Custom function for no buffer. Returns 
     def act(self,
-        env: VecEnv,
         callback: MaybeCallback,
         train_freq: TrainFreq,
         replay_buffer: ReplayBuffer,
@@ -297,11 +316,12 @@ class DQN(OffPolicyAlgorithm):
         assert isinstance(self.env, VecEnv), "You must pass a VecEnv"
         assert self.train_freq.frequency > 0, "Should at least collect one step or episode."
 
+
         if self.env.num_envs > 1:
             assert self.train_freq.unit == TrainFrequencyUnit.STEP, "You must use only one env when doing episodic training."
 
         if self.use_sde:
-            self.actor.reset_noise(env.num_envs)  # type: ignore[operator]
+            self.actor.reset_noise(self.env.num_envs)  # type: ignore[operator]
 
         callback.on_rollout_start()
         continue_training = True
@@ -328,7 +348,7 @@ class DQN(OffPolicyAlgorithm):
                 self._episode_num += 1
 
                 if action_noise is not None:
-                    kwargs = dict(indices=[idx]) if env.num_envs > 1 else {}
+                    kwargs = dict(indices=[idx]) if self.env.num_envs > 1 else {}
                     action_noise.reset(**kwargs)
 
                 # Log training infos
@@ -336,7 +356,7 @@ class DQN(OffPolicyAlgorithm):
                     self.dump_logs()
         callback.on_rollout_end()
 
-        return RolloutReturn(num_collected_steps * env.num_envs, num_collected_episodes, continue_training, observation=curr_obs, next_observation=new_obs, reward = rewards,done = dones)
+        return RolloutReturn(num_collected_steps * self.env.num_envs, num_collected_episodes, continue_training, observation=curr_obs, next_observation=new_obs, reward = rewards,done = dones)
     
     def train_no_buffer(self, observation, next_observation, reward, done):
         # Switch to train mode (this affects batch norm / dropout)
@@ -372,6 +392,10 @@ class DQN(OffPolicyAlgorithm):
         th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
         self.policy.optimizer.step()
 
+        self._n_updates += 1
+        self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+        self.logger.record("train/loss", loss)
+
 
 def learn(
     self: SelfDQN,
@@ -397,7 +421,6 @@ def learn(
         while self.num_timesteps < total_timesteps:
 
             acted = self.act(
-                self.env,
                 train_freq=self.train_freq,
                 action_noise=self.action_noise,
                 callback=callback,
