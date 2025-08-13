@@ -17,6 +17,7 @@ from stable_baselines3.common.type_aliases import (
     DictRolloutBufferSamples,
     ReplayBufferSamples,
     RolloutBufferSamples,
+    PrioritizedBufferSamples,
 )
 from stable_baselines3.common.utils import get_device
 from stable_baselines3.common.vec_env import VecNormalize
@@ -286,7 +287,7 @@ class ReplayBuffer(BaseBuffer):
             self.full = True
             self.pos = 0
 
-    def sample(self, batch_size: int, env: Optional[VecNormalize] = None) -> ReplayBufferSamples:
+    def sample(self, batch_size: int, env: Optional[VecNormalize] = None, *args) -> ReplayBufferSamples:
         """
         Sample elements from the replay buffer.
         Custom sampling when using memory efficient variant,
@@ -302,7 +303,7 @@ class ReplayBuffer(BaseBuffer):
             return super().sample(batch_size=batch_size, env=env)
         # Do not sample the element with index `self.pos` as the transitions is invalid
         # (we use only one array to store `obs` and `next_obs`)
-        if self.full:
+        if self.full:   
             batch_inds = (np.random.randint(1, self.buffer_size, size=batch_size) + self.pos) % self.buffer_size
         else:
             batch_inds = np.random.randint(0, self.pos, size=batch_size)
@@ -342,6 +343,131 @@ class ReplayBuffer(BaseBuffer):
         if dtype == np.float64:
             return np.float32
         return dtype
+
+class PrioritizedReplayBuffer(ReplayBuffer):
+
+    observations: np.ndarray
+    next_observations: np.ndarray
+    actions: np.ndarray
+    rewards: np.ndarray
+    dones: np.ndarray
+    timeouts: np.ndarray
+    priorities: np.ndarray
+    weight_change = 0
+
+
+
+    def __init__(
+            self, 
+            buffer_size, 
+            observation_space, 
+            action_space, 
+            device = "auto", 
+            n_envs = 1, 
+            optimize_memory_usage = False, 
+            handle_timeout_termination = True):
+        super().__init__(
+            buffer_size, 
+            observation_space, 
+            action_space, 
+            device, 
+            n_envs=n_envs,
+            optimize_memory_usage=optimize_memory_usage,
+            handle_timeout_termination=handle_timeout_termination)
+
+        self.priorities = np.zeros((self.buffer_size, self.n_envs))
+        self.batch_probabilities = None
+        self.current_inds = None
+
+    def add(
+        self,
+        obs: np.ndarray,
+        next_obs: np.ndarray,
+        action: np.ndarray,
+        reward: np.ndarray,
+        done: np.ndarray,
+        infos: list[dict[str, Any]],
+    ) -> None:
+        # Reshape needed when using multiple envs with discrete observations
+        # as numpy cannot broadcast (n_discrete,) to (n_discrete, 1)
+        if isinstance(self.observation_space, spaces.Discrete):
+            obs = obs.reshape((self.n_envs, *self.obs_shape))
+            next_obs = next_obs.reshape((self.n_envs, *self.obs_shape))
+
+
+        prio = np.ones(self.n_envs) if self.size() == 0 else np.full(self.n_envs, self.priorities.max()) #prio = 1 else max
+
+        # Reshape to handle multi-dim and discrete action spaces, see GH #970 #1392
+        action = action.reshape((self.n_envs, self.action_dim))
+
+        # Copy to avoid modification by reference
+        self.observations[self.pos] = np.array(obs)
+
+        if self.optimize_memory_usage:
+            self.observations[(self.pos + 1) % self.buffer_size] = np.array(next_obs)
+        else:
+            self.next_observations[self.pos] = np.array(next_obs)
+
+        self.actions[self.pos] = np.array(action)
+        self.rewards[self.pos] = np.array(reward)
+        self.dones[self.pos] = np.array(done)
+        self.priorities[self.pos] = np.array(prio)
+
+
+        if self.handle_timeout_termination:
+            self.timeouts[self.pos] = np.array([info.get("TimeLimit.truncated", False) for info in infos])
+
+        self.pos += 1
+        if self.pos == self.buffer_size:
+            self.full = True
+            self.pos = 0
+
+
+    def sample(self, batch_size: int, *args, env: Optional[VecNormalize] = None) -> PrioritizedBufferSamples:
+        #getting the exponent, args was used because I didn't want to change much of the sample function called in method train
+        exponent_a: float = args[0]
+
+        #calculating the probability of all the current experiences
+        prio = self.priorities[:self.pos] if not self.full else self.priorities #because it was initialized with 0s, capped at the current position
+        prio_sum: float = np.sum(prio ** exponent_a)
+        probability = (prio ** exponent_a)/prio_sum
+
+        #getting the index of chosen experiences for the batch
+        flat = probability.flatten() #have to flatten because can't use multinomial with 2D arrays
+        count = np.random.multinomial(batch_size, flat).reshape(probability.shape)
+        chosen = np.nonzero(count)
+        self.current_inds = chosen
+        batch_inds = np.array(chosen[0])
+        env_indices = np.array(chosen[1])
+
+        self.batch_probabilities = self.priorities[batch_inds, env_indices]#will change later, this is for accessing the batch probabilities for calculating weights
+
+
+        if self.optimize_memory_usage:
+            next_obs = self._normalize_obs(self.observations[(batch_inds + 1) % self.buffer_size, env_indices, :], env)
+        else:
+            next_obs = self._normalize_obs(self.next_observations[batch_inds, env_indices, :], env)
+
+        data = (
+            self._normalize_obs(self.observations[batch_inds, env_indices, :], env),
+            self.actions[batch_inds, env_indices, :],
+            next_obs,
+            # Only use dones that are not due to timeouts
+            # deactivated by default (timeouts is initialized as an array of False)
+            (self.dones[batch_inds, env_indices] * (1 - self.timeouts[batch_inds, env_indices])).reshape(-1, 1),
+            self._normalize_reward(self.rewards[batch_inds, env_indices].reshape(-1, 1), env),
+        )
+
+        return PrioritizedBufferSamples(*tuple(map(self.to_torch, data)))
+    
+    def batch_prob(self): return self.batch_probabilities
+
+    def update(self, td_error):
+        #this is to update the priorities after calculating td_error
+        self.priorities[self.current_inds[0], self.current_inds[1]] = np.absolute(td_error.squeeze())
+
+
+
 
 
 class RolloutBuffer(BaseBuffer):
