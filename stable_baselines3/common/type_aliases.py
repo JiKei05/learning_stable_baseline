@@ -55,6 +55,17 @@ class ReplayBufferSamples(NamedTuple):
     # For n-step replay buffer
     discounts: Optional[th.Tensor] = None
 
+class PrioritizedBufferSamples(NamedTuple):
+    observations: th.Tensor
+    actions: th.Tensor
+    next_observations: th.Tensor
+    dones: th.Tensor
+    rewards: th.Tensor
+    # For n-step replay buffer
+    discounts: Optional[th.Tensor] = None
+
+
+
 
 class DictReplayBufferSamples(NamedTuple):
     observations: TensorDict
