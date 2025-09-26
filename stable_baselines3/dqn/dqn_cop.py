@@ -110,8 +110,8 @@ class DQN(OffPolicyAlgorithm):
         use_second_net: bool = True,
         use_buffer: bool = True,
         prio_replay: bool = False,
-        exponent_a: Optional[float] = None,
-        exponent_B: Optional[float] = None,
+        exponent_a: Optional[float] = 0.7,
+        exponent_B: Optional[float] = 0.5,
     ) -> None:
         super().__init__(
             policy,
@@ -245,9 +245,7 @@ class DQN(OffPolicyAlgorithm):
                 #Compute the TD-error in case of using PrioritizedReplayBuffer
                 td_error = target_q_values - current_q_values
                 self.replay_buffer.update(td_error.detach().cpu().numpy())
-
-
-            loss_per_sample = F.smooth_l1_loss(current_q_values, target_q_values, reduction='none') * th.from_numpy(weights).float().to(self.device)
+                loss_per_sample = F.smooth_l1_loss(current_q_values, target_q_values, reduction='none') * th.from_numpy(weights).float().to(self.device)
 
             # Compute Huber loss (less sensitive to outliers)           
             loss = loss_per_sample.sum() if self.prio_replay else F.smooth_l1_loss(current_q_values, target_q_values)

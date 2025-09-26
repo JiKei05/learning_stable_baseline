@@ -287,7 +287,7 @@ class ReplayBuffer(BaseBuffer):
             self.full = True
             self.pos = 0
 
-    def sample(self, batch_size: int, env: Optional[VecNormalize] = None, *args) -> ReplayBufferSamples:
+    def sample(self, batch_size: int, *args, env: Optional[VecNormalize] = None) -> ReplayBufferSamples:
         """
         Sample elements from the replay buffer.
         Custom sampling when using memory efficient variant,
