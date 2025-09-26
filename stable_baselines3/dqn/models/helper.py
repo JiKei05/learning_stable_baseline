@@ -120,7 +120,6 @@ def algos(buffer: bool, secondnet: bool, prio: bool):
 
     return res
 
-print(algos(True, False, True))
 
 
 

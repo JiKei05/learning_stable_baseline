@@ -6,6 +6,7 @@ import warnings
 from typing import Any, ClassVar, Optional, TypeVar, Union
 
 import numpy as np
+np.float_ = np.float64
 import torch as th
 from gymnasium import spaces
 from torch.nn import functional as F

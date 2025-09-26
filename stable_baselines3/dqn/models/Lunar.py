@@ -21,15 +21,15 @@ parser.add_argument('--prio', type=str2bool, default=True)
 parser.add_argument('--num_env', type=int, default=8)
 args = parser.parse_args() 
 
-def main(file: bool, buffer: bool, secondnet: bool, num_env: int, prio: bool):
+def main(buffer: bool, secondnet: bool, num_env: int, prio: bool):
 
     algo= algos(buffer, secondnet, prio)
 
-    tmp_path = "./logged_results/LunarLander/" + str(num_env) + "envs/"
+    tmp_path = "./logged_results/LunarLander/"
 
-    envs = multiple_envs(num_env,'LunarLander-v3')
+    envs = multiple_envs(num_env,'LunarLander-v2')
 
-    environment = gym.make('LunarLander-v3')
+    environment = gym.make('LunarLander-v2')
     model = DQN("MlpPolicy", envs, batch_size=128, learning_starts=0, train_freq=(4, "step"), verbose=0,
                 target_update_interval=250, gradient_steps=-1, buffer_size=50000, use_buffer=buffer, use_second_net=secondnet, 
                 exploration_final_eps=0.1, exploration_fraction=0.12, gamma=0.99, learning_rate=0.00063, n_steps=100000, policy_kwargs=dict(net_arch=[256, 256])
@@ -40,7 +40,7 @@ def main(file: bool, buffer: bool, secondnet: bool, num_env: int, prio: bool):
     new_logger = Logger(folder=None, output_formats=[csv_out])
     model.set_logger(new_logger)
     evaluate = EvalCallback(environment, eval_freq=50, n_eval_episodes=10)
-    model.learn(total_timesteps=1200000, callback=evaluate, log_interval=50)
+    model.learn(total_timesteps=1200, callback=evaluate, log_interval=50)
 
 if __name__ == "__main__":
-    main(args.file, args.buffer, args.secondnet, args.num_env)
+    main(args.buffer, args.secondnet, args.num_env, args.prio)

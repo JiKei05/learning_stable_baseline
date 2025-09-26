@@ -20,9 +20,9 @@ args = parser.parse_args()
 
 def main(buffer: bool, secondnet: bool, prio: bool, num_env: int):
     
-    algo = algos(buffer, secondnet)
+    algo = algos(buffer, secondnet, prio)
 
-    tmp_path = "./logged_results/Acrobot/" + str(num_env) + "envs/"
+    tmp_path = "./logged_results/Acrobot/"
 
     envs = multiple_envs(num_env, 'Acrobot-v1')
 
@@ -37,7 +37,7 @@ def main(buffer: bool, secondnet: bool, prio: bool, num_env: int):
     new_logger = Logger(folder=None, output_formats=[csv_out])
     model.set_logger(new_logger)
     evaluate = EvalCallback(environment, eval_freq=50, n_eval_episodes=10)
-    model.learn(total_timesteps=1200000, callback=evaluate, log_interval=50)
+    model.learn(total_timesteps=1200, callback=evaluate, log_interval=50)
 
 if __name__ == "__main__":
     main(args.buffer, args.secondnet, args.prio, args.num_env)
