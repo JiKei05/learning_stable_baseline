@@ -113,6 +113,7 @@ class DQN(OffPolicyAlgorithm):
         prio_replay: bool = False,
         exponent_a: Optional[float] = 0.7,
         exponent_B: Optional[float] = 0.5,
+        duel: bool = False,
     ) -> None:
         super().__init__(
             policy,
@@ -150,6 +151,7 @@ class DQN(OffPolicyAlgorithm):
         self.target_update_interval = target_update_interval
         self.exponent_a = exponent_a
         self.exponent_B = exponent_B
+        self.duel = duel
         # For updating the target network with multiple envs:
         self._n_calls = 0
         self.max_grad_norm = max_grad_norm

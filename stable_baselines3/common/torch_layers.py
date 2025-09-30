@@ -182,6 +182,85 @@ def create_mlp(
         modules.append(nn.Tanh())
     return modules
 
+def duel_mlp(
+            input_dim: int,
+            output_dim: int,
+            net_arch: list[int],
+            activation_fn: type[nn.Module] = nn.ReLU,
+            squash_output: bool = False,
+            with_bias: bool = True,
+            pre_linear_module: Optional[list[type[nn.Module]]] = None,
+            post_linear_module: Optional[list[type[nn.Module]]] = None,
+        ) -> list[nn.Module]:   
+
+    print('whooooo')            
+    pre_linear_modules = pre_linear_module or []
+    post_linear_modules = post_linear_module or []
+
+    modules = []
+    if len(net_arch) > 0:
+        # BatchNorm maintains input dim
+        for module in pre_linear_modules:
+            modules.append(module(input_dim))
+
+        modules.append(nn.Linear(input_dim, net_arch[0], bias=with_bias))
+
+        # LayerNorm, Dropout maintain output dim
+        for module in post_linear_modules:
+            modules.append(module(net_arch[0]))
+
+        modules.append(activation_fn())
+
+    if len(net_arch) == 1:
+
+        x_adv = [nn.Linear(net_arch[1], output_dim, bias=with_bias)]
+        x_val = [nn.Linear(net_arch[1], 1, bias=with_bias)]
+
+        if squash_output:
+            x_adv.append(nn.Tanh())
+            x_val.append(nn.Tanh())
+
+        return nn.Sequential(*modules), nn.Sequential(*x_adv), nn.Sequential(*x_val)
+    
+    if len(net_arch) == 2:
+
+        x_adv = [nn.Linear(net_arch[0], net_arch[1], bias=with_bias), nn.ReLU(), nn.Linear(net_arch[1], output_dim, bias=with_bias)]
+        x_val = [nn.Linear(net_arch[0], net_arch[1], bias=with_bias), nn.ReLU(), nn.Linear(net_arch[1], 1, bias=with_bias)]
+
+        if squash_output:
+            x_adv.append(nn.Tanh())
+            x_val.append(nn.Tanh())
+
+        return nn.Sequential(*modules), nn.Sequential(*x_adv), nn.Sequential(*x_val)
+
+    if len(net_arch) >= 3: 
+
+        for idx in range(len(net_arch) - 2):
+            for module in pre_linear_modules:
+                modules.append(module(net_arch[idx]))
+
+            modules.append(nn.Linear(net_arch[idx], net_arch[idx + 1], bias=with_bias))
+
+            for module in post_linear_modules:
+                modules.append(module(net_arch[idx + 1]))
+
+            modules.append(activation_fn())
+
+        print(net_arch[len(net_arch)-2])
+
+        x_adv = [nn.Linear(net_arch[len(net_arch)-2], net_arch[len(net_arch)-1], bias=with_bias), nn.ReLU(), nn.Linear(net_arch[len(net_arch)-1], output_dim, bias=with_bias)]
+        x_val = [nn.Linear(net_arch[len(net_arch)-2], net_arch[len(net_arch)-1], bias=with_bias), nn.ReLU(), nn.Linear(net_arch[len(net_arch)-1], 1, bias=with_bias)]
+
+        if squash_output:
+            x_adv.append(nn.Tanh())
+            x_val.append(nn.Tanh())
+
+        return nn.Sequential(*modules), nn.Sequential(*x_adv), nn.Sequential(*x_val)
+
+    else: return modules
+
+
+
 
 class MlpExtractor(nn.Module):
     """

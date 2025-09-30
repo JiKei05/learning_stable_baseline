@@ -203,13 +203,28 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 **replay_buffer_kwargs,
             )
 
-        self.policy = self.policy_class(
-            self.observation_space,
-            self.action_space,
-            self.lr_schedule,
-            **self.policy_kwargs,
-        )
-        self.policy = self.policy.to(self.device)
+        if hasattr(self, 'duel') and self.duel:
+
+            print('duelduelduel')
+
+            self.policy = self.policy_class(
+                self.observation_space,
+                self.action_space,
+                self.lr_schedule,
+                self.duel,
+                **self.policy_kwargs,
+            )
+            self.policy = self.policy.to(self.device)
+
+        else:
+
+            self.policy = self.policy_class(
+                self.observation_space,
+                self.action_space,
+                self.lr_schedule,
+                **self.policy_kwargs,
+            )
+            self.policy = self.policy.to(self.device)
 
         # Convert train freq parameter to TrainFreq object
         self._convert_train_freq()

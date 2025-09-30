@@ -11,6 +11,7 @@ from stable_baselines3.common.torch_layers import (
     FlattenExtractor,
     NatureCNN,
     create_mlp,
+    duel_mlp,
 )
 from stable_baselines3.common.type_aliases import PyTorchObs, Schedule
 
@@ -35,6 +36,7 @@ class QNetwork(BasePolicy):
         action_space: spaces.Discrete,
         features_extractor: BaseFeaturesExtractor,
         features_dim: int,
+        duel: bool = False,
         net_arch: Optional[list[int]] = None,
         activation_fn: type[nn.Module] = nn.ReLU,
         normalize_images: bool = True,
@@ -49,12 +51,19 @@ class QNetwork(BasePolicy):
         if net_arch is None:
             net_arch = [64, 64]
 
+        self.duel = duel
         self.net_arch = net_arch
         self.activation_fn = activation_fn
         self.features_dim = features_dim
         action_dim = int(self.action_space.n)  # number of actions
-        q_net = create_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn)
-        self.q_net = nn.Sequential(*q_net)
+        q_net = duel_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn) if self.duel else create_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn)
+        if self.duel:
+            print(q_net)
+            self.q_net = q_net[0]
+            self.adv = q_net[1]
+            self.val = q_net[2]
+        else: self.q_net = nn.Sequential(*q_net) 
+
 
     def forward(self, obs: PyTorchObs) -> th.Tensor:
         """
@@ -63,6 +72,12 @@ class QNetwork(BasePolicy):
         :param obs: Observation
         :return: The estimated Q-Value for each action.
         """
+        if self.duel:
+            x = self.q_net(self.extract_features(obs, self.features_extractor))
+            x_adv = self.adv(x)
+            x_val = self.val(x)
+            return x_val + x_adv - th.mean(x_adv, dim=1, keepdim=True)
+
         return self.q_net(self.extract_features(obs, self.features_extractor))
 
     def _predict(self, observation: PyTorchObs, deterministic: bool = True) -> th.Tensor:
@@ -113,6 +128,7 @@ class DQNPolicy(BasePolicy):
         observation_space: spaces.Space,
         action_space: spaces.Discrete,
         lr_schedule: Schedule,
+        duel: bool = False,
         net_arch: Optional[list[int]] = None,
         activation_fn: type[nn.Module] = nn.ReLU,
         features_extractor_class: type[BaseFeaturesExtractor] = FlattenExtractor,
@@ -139,6 +155,7 @@ class DQNPolicy(BasePolicy):
 
         self.net_arch = net_arch
         self.activation_fn = activation_fn
+        self.duel = duel #activate duel network
 
         self.net_args = {
             "observation_space": self.observation_space,
@@ -165,6 +182,10 @@ class DQNPolicy(BasePolicy):
         self.q_net_target.load_state_dict(self.q_net.state_dict())
         self.q_net_target.set_training_mode(False)
 
+        for name, param in self.q_net.named_parameters():
+            print('goober')
+            print(f"{name}: {param.shape}")
+
         # Setup optimizer with initial learning rate
         self.optimizer = self.optimizer_class(  # type: ignore[call-arg]
             self.q_net.parameters(),
@@ -175,7 +196,7 @@ class DQNPolicy(BasePolicy):
     def make_q_net(self) -> QNetwork:
         # Make sure we always have separate networks for features extractors etc
         net_args = self._update_features_extractor(self.net_args, features_extractor=None)
-        return QNetwork(**net_args).to(self.device)
+        return QNetwork(duel=self.duel, **net_args).to(self.device)
 
     def forward(self, obs: PyTorchObs, deterministic: bool = True) -> th.Tensor:
         return self._predict(obs, deterministic=deterministic)
