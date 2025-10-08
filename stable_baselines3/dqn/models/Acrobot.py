@@ -13,21 +13,22 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--buffer', type=str2bool, default=True)
 parser.add_argument('--secondnet', type=str2bool, default=True)
-parser.add_argument('--prio', type=str2bool, default=True)
+parser.add_argument('--prio', type=str2bool, default=False)
+parser.add_argument('--duel', type=str2bool, default=True)
 parser.add_argument('--num_env', type=int, default=8)
 args = parser.parse_args() 
 
 
-def main(buffer: bool, secondnet: bool, prio: bool, num_env: int):
+def main(buffer: bool, secondnet: bool, prio: bool, duel: bool, num_env: int):
     
-    algo = algos(buffer, secondnet, prio)
+    algo = algos(buffer, secondnet, prio, duel)
 
     tmp_path = "./logged_results/Acrobot/"
 
     envs = multiple_envs(num_env, 'Acrobot-v1')
 
     environment = gym.make('Acrobot-v1')
-    model = DQN("MlpPolicy", envs, batch_size=128, learning_starts=0, train_freq=(4, "step"), verbose=0,
+    model = DQN("MlpPolicy", envs, batch_size=128, learning_starts=0, train_freq=(4, "step"), verbose=0, duel=duel,
                 target_update_interval=250, gradient_steps=-1, buffer_size=50000, use_buffer=buffer, use_second_net=secondnet, prio_replay=prio,
                 exploration_final_eps=0.1, exploration_fraction=0.12, gamma=0.99, learning_rate=0.00063, n_steps=100000, policy_kwargs=dict(net_arch=[256, 256])
               )
@@ -37,7 +38,7 @@ def main(buffer: bool, secondnet: bool, prio: bool, num_env: int):
     new_logger = Logger(folder=None, output_formats=[csv_out])
     model.set_logger(new_logger)
     evaluate = EvalCallback(environment, eval_freq=50, n_eval_episodes=10)
-    model.learn(total_timesteps=1200, callback=evaluate, log_interval=50)
+    model.learn(total_timesteps=120000, callback=evaluate, log_interval=50)
 
 if __name__ == "__main__":
-    main(args.buffer, args.secondnet, args.prio, args.num_env)
+    main(args.buffer, args.secondnet, args.prio, args.duel, args.num_env)

@@ -14,12 +14,15 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--buffer', type=str2bool, default=True)
 parser.add_argument('--secondnet', type=str2bool, default=True)
-parser.add_argument('--prio', type=str2bool, default=True)
+parser.add_argument('--prio', type=str2bool, default=False)
+parser.add_argument('--duel', type=str2bool, default=True)
 parser.add_argument('--num_env', type=int, default=8)
 args = parser.parse_args() 
 
 
-def main(buffer: bool, secondnet: bool, prio: bool, num_env: int):
+def main(buffer: bool, secondnet: bool, prio: bool, duel: bool, num_env: int):
+    
+    algo = algos(buffer, secondnet, prio, duel)
 
     tmp_path = "./logged_results/MountainCar/"
 
@@ -41,4 +44,4 @@ def main(buffer: bool, secondnet: bool, prio: bool, num_env: int):
     model.learn(total_timesteps=6000, callback=evaluate, log_interval=50)
 
 if __name__ == "__main__":
-    main(args.buffer, args.secondnet, args.prio, args.num_env)
+    main(args.buffer, args.secondnet, args.prio, args.duel, args.num_env)
