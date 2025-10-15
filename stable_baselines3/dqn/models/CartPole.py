@@ -31,7 +31,7 @@ def main(buffer: bool, secondnet: bool, prio: bool, duel: bool, num_env: int):
     envs = multiple_envs(num_env, 'CartPole-v1')
 
     environment = gym.make('CartPole-v1')
-    model = DQN("MlpPolicy", envs, batch_size=64, learning_starts=1000, train_freq=(256, "step"), verbose=0, prio_replay=prio,
+    model = DQN("MlpPolicy", envs, batch_size=64, learning_starts=1000, train_freq=(256, "step"), verbose=0, prio_replay=prio, duel=duel,
                 target_update_interval=10, gradient_steps=128, buffer_size=100000, use_buffer=False, use_second_net=False, 
                 exploration_final_eps=0.04, exploration_fraction=0.16, gamma=0.99, learning_rate=0.0023, n_steps=50000, policy_kwargs=dict(net_arch=[256, 256])
               )

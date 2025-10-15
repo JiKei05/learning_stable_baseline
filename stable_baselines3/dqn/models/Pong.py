@@ -5,14 +5,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 from stable_baselines3.dqn.dqn_cop import DQN
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.logger import configure
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 from stable_baselines3.dqn.models.helper import multiple_envs, str2bool, algos
 from stable_baselines3.common.logger import CSVOutputFormat, Logger
+from stable_baselines3.common.atari_wrappers import AtariWrapper
+from stable_baselines3.common.vec_env import VecFrameStack, VecNormalize, DummyVecEnv, VecEnv
+from stable_baselines3.dqn.policies import CnnPolicy
+import ale_py
 import gymnasium as gym
-import torch as th
-from gymnasium import Wrapper
-import random
+
 import argparse
+
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--buffer', type=str2bool, default=True)
@@ -27,14 +30,16 @@ def main(buffer: bool, secondnet: bool, prio: bool, duel: bool, num_env: int):
     
     algo = algos(buffer, secondnet, prio, duel)
 
-    tmp_path = "./logged_results/LunarLander/"
+    tmp_path = "./logged_results/pong/"
 
-    envs = multiple_envs(num_env,'LunarLander-v2')
+    envs = VecFrameStack(multiple_envs(num_env, 'ALE/Pong-v5', atari=True), n_stack=4)
+    environment = AtariWrapper(gym.make('ALE/Pong-v5'))
+    environment = VecFrameStack(DummyVecEnv([lambda: environment]), n_stack=4)
 
-    environment = gym.make('LunarLander-v2')
-    model = DQN("MlpPolicy", envs, batch_size=128, learning_starts=0, train_freq=(4, "step"), verbose=0, prio_replay=prio, duel=duel,
-                target_update_interval=250, gradient_steps=-1, buffer_size=50000, use_buffer=buffer, use_second_net=secondnet, 
-                exploration_final_eps=0.1, exploration_fraction=0.12, gamma=0.99, learning_rate=0.00063, n_steps=100000, policy_kwargs=dict(net_arch=[256, 256])
+
+    model = DQN('CnnPolicy', env=envs, batch_size=32, l1earning_starts=100000, train_freq=4, verbose=0, duel=False,
+                target_update_interval=1000, gradient_steps=1, buffer_size=10000, use_buffer=buffer, use_second_net=secondnet, prio_replay=prio,
+                exploration_final_eps=0.01, exploration_fraction=0.1, gamma=0.99, learning_rate=0.0001, n_steps=10000000
               )
     
     csv_out = CSVOutputFormat(os.path.join(tmp_path, algo + ".csv"))
@@ -42,7 +47,7 @@ def main(buffer: bool, secondnet: bool, prio: bool, duel: bool, num_env: int):
     new_logger = Logger(folder=None, output_formats=[csv_out])
     model.set_logger(new_logger)
     evaluate = EvalCallback(environment, eval_freq=50, n_eval_episodes=10)
-    model.learn(total_timesteps=1200000, callback=evaluate, log_interval=50)
+    model.learn(total_timesteps=1200, callback=evaluate, log_interval=50)
 
 if __name__ == "__main__":
     main(args.buffer, args.secondnet, args.prio, args.duel, args.num_env)

@@ -31,7 +31,7 @@ def main(buffer: bool, secondnet: bool, prio: bool, duel: bool, num_env: int):
     envs = multiple_envs(num_env, 'MountainCar-v0')
 
     environment = gym.make('MountainCar-v0')
-    model = DQN("MlpPolicy", envs, batch_size=128, learning_starts=1000, train_freq=(16, "step"), verbose=0,
+    model = DQN("MlpPolicy", envs, batch_size=128, learning_starts=1000, train_freq=(16, "step"), verbose=0, prio_replay=prio, duel=duel,
                 target_update_interval=600, gradient_steps=8, buffer_size=10000, use_buffer=buffer, use_second_net=secondnet, prio_replay=prio,
                 exploration_final_eps=0.07, exploration_fraction=0.2, gamma=0.98, learning_rate=0.004, n_steps=120000, policy_kwargs=dict(net_arch=[256, 256])
               )
@@ -41,7 +41,7 @@ def main(buffer: bool, secondnet: bool, prio: bool, duel: bool, num_env: int):
     new_logger = Logger(folder=None, output_formats=[csv_out])
     model.set_logger(new_logger)
     evaluate = EvalCallback(environment, eval_freq=50, n_eval_episodes=10)
-    model.learn(total_timesteps=6000, callback=evaluate, log_interval=50)
+    model.learn(total_timesteps=1200000, callback=evaluate, log_interval=50)
 
 if __name__ == "__main__":
     main(args.buffer, args.secondnet, args.prio, args.duel, args.num_env)

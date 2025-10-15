@@ -38,7 +38,7 @@ def main(buffer: bool, secondnet: bool, prio: bool, duel: bool, num_env: int):
     new_logger = Logger(folder=None, output_formats=[csv_out])
     model.set_logger(new_logger)
     evaluate = EvalCallback(environment, eval_freq=50, n_eval_episodes=10)
-    model.learn(total_timesteps=120000, callback=evaluate, log_interval=50)
+    model.learn(total_timesteps=1200000, callback=evaluate, log_interval=50)
 
 if __name__ == "__main__":
     main(args.buffer, args.secondnet, args.prio, args.duel, args.num_env)
