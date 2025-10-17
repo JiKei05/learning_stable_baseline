@@ -26,8 +26,6 @@ def main(buffer: bool, secondnet: bool, prio: bool, duel: bool, num_env: int):
 
     tmp_path = "./logged_results/MountainCar/"
 
-    algo = algos(buffer, secondnet, prio)
-
     envs = multiple_envs(num_env, 'MountainCar-v0')
 
     environment = gym.make('MountainCar-v0')
