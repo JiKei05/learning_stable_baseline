@@ -32,7 +32,7 @@ def main(buffer: bool, secondnet: bool, prio: bool, duel: bool, num_env: int):
 
     environment = gym.make('MountainCar-v0')
     model = DQN("MlpPolicy", envs, batch_size=128, learning_starts=1000, train_freq=(16, "step"), verbose=0, prio_replay=prio, duel=duel,
-                target_update_interval=600, gradient_steps=8, buffer_size=10000, use_buffer=buffer, use_second_net=secondnet, prio_replay=prio,
+                target_update_interval=600, gradient_steps=8, buffer_size=10000, use_buffer=buffer, use_second_net=secondnet,
                 exploration_final_eps=0.07, exploration_fraction=0.2, gamma=0.98, learning_rate=0.004, n_steps=120000, policy_kwargs=dict(net_arch=[256, 256])
               )
     
