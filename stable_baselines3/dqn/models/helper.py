@@ -4,7 +4,8 @@ import os
 
 import scipy.integrate
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack
+from stable_baselines3.common.atari_wrappers import AtariWrapper
 import gymnasium as gym
 from gymnasium import Wrapper
 import random
@@ -22,17 +23,17 @@ class CompatibilityWrapper(Wrapper):
     def get_wrapper_attr(self, name):
         return getattr(self, name)
     
-def make_envs(env_id: str, seed: int, rank: int):
+def make_envs(env_id: str, seed: int, rank: int, atari:bool):
     def init():
-        env = gym.make(env_id)
+        env = AtariWrapper(gym.make(env_id)) if atari else gym.make(env_id)
         env = CompatibilityWrapper(env)
-        env.reset(seed=seed+rank)
+        if not atari: env.reset(seed=seed+rank)
         return env
     return init
 
-def multiple_envs(num: int, env: str):
+def multiple_envs(num: int, env: str, atari: bool=False):
     seed = random.randint(0, 1000)
-    return SubprocVecEnv([make_envs(env, seed, i) for i in range(num)])
+    return SubprocVecEnv([make_envs(env, seed, i, atari) for i in range(num)])
 
 #For visualizing logged results
 def viz(dir: str):
