@@ -128,7 +128,6 @@ class DQNPolicy(BasePolicy):
         observation_space: spaces.Space,
         action_space: spaces.Discrete,
         lr_schedule: Schedule,
-        duel: bool = False,
         net_arch: Optional[list[int]] = None,
         activation_fn: type[nn.Module] = nn.ReLU,
         features_extractor_class: type[BaseFeaturesExtractor] = FlattenExtractor,
@@ -136,6 +135,7 @@ class DQNPolicy(BasePolicy):
         normalize_images: bool = True,
         optimizer_class: type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[dict[str, Any]] = None,
+        duel: bool = False,
     ) -> None:
         super().__init__(
             observation_space,
@@ -183,7 +183,6 @@ class DQNPolicy(BasePolicy):
         self.q_net_target.set_training_mode(False)
 
         for name, param in self.q_net.named_parameters():
-            print('goober')
             print(f"{name}: {param.shape}")
 
         # Setup optimizer with initial learning rate
@@ -196,6 +195,7 @@ class DQNPolicy(BasePolicy):
     def make_q_net(self) -> QNetwork:
         # Make sure we always have separate networks for features extractors etc
         net_args = self._update_features_extractor(self.net_args, features_extractor=None)
+        print(net_args)
         return QNetwork(duel=self.duel, **net_args).to(self.device)
 
     def forward(self, obs: PyTorchObs, deterministic: bool = True) -> th.Tensor:
@@ -265,6 +265,7 @@ class CnnPolicy(DQNPolicy):
         normalize_images: bool = True,
         optimizer_class: type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[dict[str, Any]] = None,
+        duel: bool = False
     ) -> None:
         super().__init__(
             observation_space,
@@ -277,6 +278,7 @@ class CnnPolicy(DQNPolicy):
             normalize_images,
             optimizer_class,
             optimizer_kwargs,
+            duel
         )
 
 

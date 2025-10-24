@@ -108,6 +108,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         use_sde_at_warmup: bool = False,
         sde_support: bool = True,
         supported_action_spaces: Optional[tuple[type[spaces.Space], ...]] = None,
+        duel: bool = False
     ):
         super().__init__(
             policy=policy,
@@ -137,6 +138,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         self.replay_buffer_class = replay_buffer_class
         self.replay_buffer_kwargs = replay_buffer_kwargs or {}
         self.n_steps = n_steps
+        self.duel = duel
 
         # Save train freq parameter, will be converted later to TrainFreq object
         self.train_freq = train_freq
@@ -203,28 +205,14 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 **replay_buffer_kwargs,
             )
 
-        if hasattr(self, 'duel') and self.duel:
-
-            print('duelduelduel')
-
-            self.policy = self.policy_class(
-                self.observation_space,
-                self.action_space,
-                self.lr_schedule,
-                self.duel,
-                **self.policy_kwargs,
-            )
-            self.policy = self.policy.to(self.device)
-
-        else:
-
-            self.policy = self.policy_class(
-                self.observation_space,
-                self.action_space,
-                self.lr_schedule,
-                **self.policy_kwargs,
-            )
-            self.policy = self.policy.to(self.device)
+        self.policy = self.policy_class(
+            self.observation_space,
+            self.action_space,
+            self.lr_schedule,
+            duel = self.duel,
+            **self.policy_kwargs,
+        )
+        self.policy = self.policy.to(self.device)
 
         # Convert train freq parameter to TrainFreq object
         self._convert_train_freq()
