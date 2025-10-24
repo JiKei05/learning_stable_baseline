@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--buffer', type=str2bool, default=True)
 parser.add_argument('--secondnet', type=str2bool, default=True)
 parser.add_argument('--prio', type=str2bool, default=False)
-parser.add_argument('--duel', type=str2bool, default=True)
+parser.add_argument('--duel', type=str2bool, default=False)
 parser.add_argument('--num_env', type=int, default=8)
 args = parser.parse_args() 
 
