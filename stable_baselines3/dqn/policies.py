@@ -136,6 +136,7 @@ class DQNPolicy(BasePolicy):
         optimizer_class: type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[dict[str, Any]] = None,
         duel: bool = False,
+        noisy: bool = False,
     ) -> None:
         super().__init__(
             observation_space,
@@ -156,6 +157,7 @@ class DQNPolicy(BasePolicy):
         self.net_arch = net_arch
         self.activation_fn = activation_fn
         self.duel = duel #activate duel network
+        self.noisy = noisy
 
         self.net_args = {
             "observation_space": self.observation_space,

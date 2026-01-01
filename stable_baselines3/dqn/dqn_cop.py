@@ -114,6 +114,7 @@ class DQN(OffPolicyAlgorithm):
         exponent_a: Optional[float] = 0.7,
         exponent_B: Optional[float] = 0.5,
         duel: bool = False,
+        noisy: bool = False,
     ) -> None:
         super().__init__(
             policy,
@@ -140,6 +141,7 @@ class DQN(OffPolicyAlgorithm):
             sde_support=False,
             supported_action_spaces=(spaces.Discrete,),
             support_multi_env=True,
+            noisy=noisy,
         )
 
         self.use_second_net = use_second_net
@@ -152,6 +154,8 @@ class DQN(OffPolicyAlgorithm):
         self.exponent_a = exponent_a
         self.exponent_B = exponent_B
         self.duel = duel
+        print('dev')
+        print(self.device)
         # For updating the target network with multiple envs:
         self._n_calls = 0
         self.max_grad_norm = max_grad_norm
@@ -230,7 +234,7 @@ class DQN(OffPolicyAlgorithm):
                 next_q_values, _ = next_q_values.max(dim=1)
                 # Avoid potential broadcast issue
                 next_q_values = next_q_values.reshape(-1, 1)
-                # 1-step TD target  
+                # 1-step TD target
                 target_q_values = replay_data.rewards + (1 - replay_data.dones) * discounts * next_q_values
             self.policy.set_training_mode(True)    
 

@@ -4,11 +4,50 @@ import gymnasium as gym
 import torch as th
 from gymnasium import spaces
 from torch import nn
+import numpy as np
 
 from stable_baselines3.common.preprocessing import get_flattened_obs_dim, is_image_space
 from stable_baselines3.common.type_aliases import TensorDict
 from stable_baselines3.common.utils import get_device
 
+
+class NoisyLinear(nn.Linear):
+    def __init__(self, in_features, out_features, sigma_init = 0.5, bias = True, device=None, dtype=None):
+        super().__init__(in_features, out_features, bias, device, dtype)
+
+        self.weight_sig = nn.Parameter(th.empty(out_features, in_features))
+        self.bias_sig = nn.Parameter(th.empty(out_features))
+
+        self.register_buffer('weight_noise', th.empty(out_features, in_features))
+        self.register_buffer('bias_noise', th.empty(out_features))
+
+        self.sigma_init = sigma_init
+
+    def reset_parameters(self):
+        super().reset_parameters()
+        self.weight_sig.data.fill_(self.sigma_init / np.sqrt(self.in_features))
+        self.bias_sig.data.fill_(self.sigma_init / np.sqrt(self.out_features))
+
+    def reset_noise(self):
+        epsilon_in = self._scale_noise(self.in_features)
+        epsilon_out = self._scale_noise(self.out_features)
+        self.weight_noise.copy_(epsilon_out.outer(epsilon_in))
+        self.bias_noise.copy_(epsilon_out)
+    
+    def _scale_noise(self, size):
+        x = th.randn(size)
+        return x.sign() * x.abs().sqrt()
+
+    def forward(self, x):
+        if self.training:
+            # Use self.weight (inherited) instead of self.weight_mu
+            weight = self.weight + self.weight_sig * self.weight_noise
+            bias = self.bias + self.bias_sig * self.bias_noise
+        else:
+            # Just use inherited weight and bias
+            weight = self.weight
+            bias = self.bias
+        return nn.functional.linear(x, weight, bias)
 
 class BaseFeaturesExtractor(nn.Module):
     """
@@ -116,6 +155,8 @@ def create_mlp(
     with_bias: bool = True,
     pre_linear_modules: Optional[list[type[nn.Module]]] = None,
     post_linear_modules: Optional[list[type[nn.Module]]] = None,
+    linear_layer: type[nn.Linear] = nn.Linear,
+
 ) -> list[nn.Module]:
     """
     Create a multi layer perceptron (MLP), which is
@@ -142,9 +183,12 @@ def create_mlp(
         the module's constructor.
     :return: The list of layers of the neural network
     """
-
+    
     pre_linear_modules = pre_linear_modules or []
     post_linear_modules = post_linear_modules or []
+
+    print('pre_linear')
+    print(pre_linear_modules)
 
     modules = []
     if len(net_arch) > 0:
@@ -152,7 +196,7 @@ def create_mlp(
         for module in pre_linear_modules:
             modules.append(module(input_dim))
 
-        modules.append(nn.Linear(input_dim, net_arch[0], bias=with_bias))
+        modules.append(linear_layer(input_dim, net_arch[0], bias=with_bias))
 
         # LayerNorm, Dropout maintain output dim
         for module in post_linear_modules:
@@ -164,7 +208,7 @@ def create_mlp(
         for module in pre_linear_modules:
             modules.append(module(net_arch[idx]))
 
-        modules.append(nn.Linear(net_arch[idx], net_arch[idx + 1], bias=with_bias))
+        modules.append(linear_layer(net_arch[idx], net_arch[idx + 1], bias=with_bias))
 
         for module in post_linear_modules:
             modules.append(module(net_arch[idx + 1]))
@@ -177,7 +221,7 @@ def create_mlp(
         for module in pre_linear_modules:
             modules.append(module(last_layer_dim))
 
-        modules.append(nn.Linear(last_layer_dim, output_dim, bias=with_bias))
+        modules.append(linear_layer(last_layer_dim, output_dim, bias=with_bias))
     if squash_output:
         modules.append(nn.Tanh())
     return modules
@@ -191,6 +235,7 @@ def duel_mlp(
             with_bias: bool = True,
             pre_linear_module: Optional[list[type[nn.Module]]] = None,
             post_linear_module: Optional[list[type[nn.Module]]] = None,
+            linear_layer: type[nn.Linear] = nn.Linear,
         ) -> list[nn.Module]:   
 
     print('whooooo')            
@@ -198,12 +243,13 @@ def duel_mlp(
     post_linear_modules = post_linear_module or []
 
     modules = []
+    print(len(net_arch))
     if len(net_arch) > 0:
         # BatchNorm maintains input dim
         for module in pre_linear_modules:
             modules.append(module(input_dim))
 
-        modules.append(nn.Linear(input_dim, net_arch[0], bias=with_bias))
+        modules.append(linear_layer(input_dim, net_arch[0], bias=with_bias))
 
         # LayerNorm, Dropout maintain output dim
         for module in post_linear_modules:
@@ -213,8 +259,8 @@ def duel_mlp(
 
     if len(net_arch) == 1:
 
-        x_adv = [nn.Linear(net_arch[1], output_dim, bias=with_bias)]
-        x_val = [nn.Linear(net_arch[1], 1, bias=with_bias)]
+        x_adv = [linear_layer(net_arch[0], output_dim, bias=with_bias)]
+        x_val = [linear_layer(net_arch[0], 1, bias=with_bias)]
 
         if squash_output:
             x_adv.append(nn.Tanh())
@@ -222,42 +268,35 @@ def duel_mlp(
 
         return nn.Sequential(*modules), nn.Sequential(*x_adv), nn.Sequential(*x_val)
     
-    if len(net_arch) == 2:
 
-        x_adv = [nn.Linear(net_arch[0], net_arch[1], bias=with_bias), nn.ReLU(), nn.Linear(net_arch[1], output_dim, bias=with_bias)]
-        x_val = [nn.Linear(net_arch[0], net_arch[1], bias=with_bias), nn.ReLU(), nn.Linear(net_arch[1], 1, bias=with_bias)]
 
-        if squash_output:
-            x_adv.append(nn.Tanh())
-            x_val.append(nn.Tanh())
+    for idx in range(len(net_arch) - 1):
+        for module in pre_linear_modules:
+            modules.append(module(net_arch[idx]))
 
-        return nn.Sequential(*modules), nn.Sequential(*x_adv), nn.Sequential(*x_val)
+        modules.append(linear_layer(net_arch[idx], net_arch[idx + 1], bias=with_bias))
 
-    if len(net_arch) >= 3: 
+        for module in post_linear_modules:
+            modules.append(module(net_arch[idx + 1]))
 
-        for idx in range(len(net_arch) - 2):
-            for module in pre_linear_modules:
-                modules.append(module(net_arch[idx]))
+        modules.append(activation_fn())
 
-            modules.append(nn.Linear(net_arch[idx], net_arch[idx + 1], bias=with_bias))
+    if output_dim > 0:
+        last_layer_dim = net_arch[-1] if len(net_arch) > 0 else input_dim
+        # Only add BatchNorm before output layer
+        for module in pre_linear_modules:
+            modules.append(module(last_layer_dim))
 
-            for module in post_linear_modules:
-                modules.append(module(net_arch[idx + 1]))
+        x_adv = [linear_layer(last_layer_dim, output_dim, bias=with_bias)]
+        x_val = [linear_layer(last_layer_dim, 1, bias=with_bias)]
 
-            modules.append(activation_fn())
+    if squash_output:
+        x_adv.append(nn.Tanh())
+        x_val.append(nn.Tanh())
 
-        print(net_arch[len(net_arch)-2])
+    return nn.Sequential(*modules), nn.Sequential(*x_adv), nn.Sequential(*x_val)
 
-        x_adv = [nn.Linear(net_arch[len(net_arch)-2], net_arch[len(net_arch)-1], bias=with_bias), nn.ReLU(), nn.Linear(net_arch[len(net_arch)-1], output_dim, bias=with_bias)]
-        x_val = [nn.Linear(net_arch[len(net_arch)-2], net_arch[len(net_arch)-1], bias=with_bias), nn.ReLU(), nn.Linear(net_arch[len(net_arch)-1], 1, bias=with_bias)]
 
-        if squash_output:
-            x_adv.append(nn.Tanh())
-            x_val.append(nn.Tanh())
-
-        return nn.Sequential(*modules), nn.Sequential(*x_adv), nn.Sequential(*x_val)
-
-    else: return modules
 
 
 

@@ -108,7 +108,8 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         use_sde_at_warmup: bool = False,
         sde_support: bool = True,
         supported_action_spaces: Optional[tuple[type[spaces.Space], ...]] = None,
-        duel: bool = False
+        duel: bool = False,
+        noisy: bool = False,
     ):
         super().__init__(
             policy=policy,
@@ -139,6 +140,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         self.replay_buffer_kwargs = replay_buffer_kwargs or {}
         self.n_steps = n_steps
         self.duel = duel
+        self.noisy = noisy
 
         # Save train freq parameter, will be converted later to TrainFreq object
         self.train_freq = train_freq
@@ -210,6 +212,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             self.action_space,
             self.lr_schedule,
             duel = self.duel,
+            noisy = self.noisy
             **self.policy_kwargs,
         )
         self.policy = self.policy.to(self.device)
