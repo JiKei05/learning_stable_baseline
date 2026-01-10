@@ -212,7 +212,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             self.action_space,
             self.lr_schedule,
             duel = self.duel,
-            noisy = self.noisy
+            noisy = self.noisy,
             **self.policy_kwargs,
         )
         self.policy = self.policy.to(self.device)

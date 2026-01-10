@@ -141,7 +141,7 @@ class DQN(OffPolicyAlgorithm):
             sde_support=False,
             supported_action_spaces=(spaces.Discrete,),
             support_multi_env=True,
-            noisy=noisy,
+            #noisy=noisy,
         )
 
         self.use_second_net = use_second_net
@@ -154,6 +154,7 @@ class DQN(OffPolicyAlgorithm):
         self.exponent_a = exponent_a
         self.exponent_B = exponent_B
         self.duel = duel
+        self.noisy = noisy
         print('dev')
         print(self.device)
         # For updating the target network with multiple envs:
@@ -289,15 +290,18 @@ class DQN(OffPolicyAlgorithm):
         :return: the model's action and the next state
             (used in recurrent policies)
         """
-        if not deterministic and np.random.rand() < self.exploration_rate:
-            if self.policy.is_vectorized_observation(observation):
-                if isinstance(observation, dict):
-                    n_batch = observation[next(iter(observation.keys()))].shape[0]
+        if not self.noisy:
+            if not deterministic and np.random.rand() < self.exploration_rate:
+                if self.policy.is_vectorized_observation(observation):
+                    if isinstance(observation, dict):
+                        n_batch = observation[next(iter(observation.keys()))].shape[0]
+                    else:
+                        n_batch = observation.shape[0]
+                    action = np.array([self.action_space.sample() for _ in range(n_batch)])
                 else:
-                    n_batch = observation.shape[0]
-                action = np.array([self.action_space.sample() for _ in range(n_batch)])
+                    action = np.array(self.action_space.sample())
             else:
-                action = np.array(self.action_space.sample())
+                action, state = self.policy.predict(observation, state, episode_start, deterministic)
         else:
             action, state = self.policy.predict(observation, state, episode_start, deterministic)
         return action, state

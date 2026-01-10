@@ -22,9 +22,11 @@ class NoisyLinear(nn.Linear):
         self.register_buffer('bias_noise', th.empty(out_features))
 
         self.sigma_init = sigma_init
+        self.reset_noise_parameters()
+        self.reset_noise
 
-    def reset_parameters(self):
-        super().reset_parameters()
+    def reset_noise_parameters(self):
+        #super().reset_parameters()
         self.weight_sig.data.fill_(self.sigma_init / np.sqrt(self.in_features))
         self.bias_sig.data.fill_(self.sigma_init / np.sqrt(self.out_features))
 
@@ -33,6 +35,7 @@ class NoisyLinear(nn.Linear):
         epsilon_out = self._scale_noise(self.out_features)
         self.weight_noise.copy_(epsilon_out.outer(epsilon_in))
         self.bias_noise.copy_(epsilon_out)
+
     
     def _scale_noise(self, size):
         x = th.randn(size)

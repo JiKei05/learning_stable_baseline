@@ -10,6 +10,7 @@ from stable_baselines3.common.torch_layers import (
     CombinedExtractor,
     FlattenExtractor,
     NatureCNN,
+    NoisyLinear,
     create_mlp,
     duel_mlp,
 )
@@ -37,6 +38,7 @@ class QNetwork(BasePolicy):
         features_extractor: BaseFeaturesExtractor,
         features_dim: int,
         duel: bool = False,
+        linear_layer: type[nn.Linear] = nn.Linear,
         net_arch: Optional[list[int]] = None,
         activation_fn: type[nn.Module] = nn.ReLU,
         normalize_images: bool = True,
@@ -52,13 +54,13 @@ class QNetwork(BasePolicy):
             net_arch = [64, 64]
 
         self.duel = duel
+        self.linear_layer = linear_layer
         self.net_arch = net_arch
         self.activation_fn = activation_fn
         self.features_dim = features_dim
         action_dim = int(self.action_space.n)  # number of actions
-        q_net = duel_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn) if self.duel else create_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn)
+        q_net = duel_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer) if self.duel else create_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer)
         if self.duel:
-            print(q_net)
             self.q_net = q_net[0]
             self.adv = q_net[1]
             self.val = q_net[2]
@@ -157,7 +159,7 @@ class DQNPolicy(BasePolicy):
         self.net_arch = net_arch
         self.activation_fn = activation_fn
         self.duel = duel #activate duel network
-        self.noisy = noisy
+        self.noisy = NoisyLinear if noisy else nn.Linear
 
         self.net_args = {
             "observation_space": self.observation_space,
@@ -184,6 +186,11 @@ class DQNPolicy(BasePolicy):
         self.q_net_target.load_state_dict(self.q_net.state_dict())
         self.q_net_target.set_training_mode(False)
 
+        # for child in self.q_net.modules():
+        #     if type(child) == NoisyLinear:
+        #         print(child.w)
+        #         child.reset_noise()
+
         for name, param in self.q_net.named_parameters():
             print(f"{name}: {param.shape}")
 
@@ -198,12 +205,16 @@ class DQNPolicy(BasePolicy):
         # Make sure we always have separate networks for features extractors etc
         net_args = self._update_features_extractor(self.net_args, features_extractor=None)
         print(net_args)
-        return QNetwork(duel=self.duel, **net_args).to(self.device)
+        return QNetwork(duel=self.duel, linear_layer=self.noisy, **net_args).to(self.device)
 
     def forward(self, obs: PyTorchObs, deterministic: bool = True) -> th.Tensor:
         return self._predict(obs, deterministic=deterministic)
 
     def _predict(self, obs: PyTorchObs, deterministic: bool = True) -> th.Tensor:
+        if self.noisy == NoisyLinear:
+            for child in self.q_net.modules(): 
+                if type(child) == NoisyLinear:
+                    child.reset_noise()
         return self.q_net._predict(obs, deterministic=deterministic)
 
     def _get_constructor_parameters(self) -> dict[str, Any]:
@@ -267,7 +278,8 @@ class CnnPolicy(DQNPolicy):
         normalize_images: bool = True,
         optimizer_class: type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[dict[str, Any]] = None,
-        duel: bool = False
+        duel: bool = False,
+        noisy: bool = False
     ) -> None:
         super().__init__(
             observation_space,
@@ -280,7 +292,8 @@ class CnnPolicy(DQNPolicy):
             normalize_images,
             optimizer_class,
             optimizer_kwargs,
-            duel
+            duel,
+            noisy
         )
 
 
