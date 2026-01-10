@@ -109,7 +109,7 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def algos(buffer: bool, secondnet: bool, prio: bool, duel: bool):
+def algos(buffer: bool, secondnet: bool, prio: bool, duel: bool, noisy: bool):
     res = ""
 
     if secondnet: res += "2net_" 
@@ -119,7 +119,9 @@ def algos(buffer: bool, secondnet: bool, prio: bool, duel: bool):
 
     if prio: res += "prio_"
 
-    if duel: res += "duel"
+    if duel: res += "duel_"
+
+    if noisy: res += "noisy"
 
     return res
 
