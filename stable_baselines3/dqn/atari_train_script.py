@@ -20,10 +20,9 @@ import logging
 from pathlib import Path
 
 
-def make_env(env_id: str, rank: int, seed: int = 0, monitor_dir: str = None):
+def make_env(env_id: str, rank: int, seed: int = 0, monitor_dir: str = None, atari: bool = False):
     def _init():
-        env = gym.make(env_id)
-        env = AtariWrapper(env)
+        env = AtariWrapper(gym.make(env_id)) if atari else gym.make(env_id)
         if monitor_dir:
             env = Monitor(env, os.path.join(monitor_dir, str(rank)))
         env.reset(seed=seed+rank)
@@ -33,9 +32,10 @@ def make_env(env_id: str, rank: int, seed: int = 0, monitor_dir: str = None):
 def setup_env(config: Dict[str, Any], seed: int, monitor_dir: str = None):
     env_id = config['env']['id']
     n_envs = config['env']['n_envs']
+    atari = config['env']['atari']
     
     env = DummyVecEnv([
-        make_env(env_id, i, seed, monitor_dir) 
+        make_env(env_id, i, seed, monitor_dir, atari) 
         for i in range(n_envs)
     ])
     env = VecFrameStack(env, n_stack=config['env']['n_stack'])
