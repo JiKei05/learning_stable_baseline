@@ -88,7 +88,7 @@ def train_single_run(
 
     env = setup_env(config, seed, train_monitor_dir)
     eval_env = setup_env(config, seed + 1000, eval_monitor_dir)
-    eval_env = VecTransposeImage(eval_env)
+    eval_env = VecTransposeImage(eval_env) if config['env']['atari'] else eval_env
     
 
     actual_eval_freq = config['logging']['eval_freq'] // config['env']['n_envs']
