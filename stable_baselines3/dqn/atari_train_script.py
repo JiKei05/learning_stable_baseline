@@ -7,7 +7,7 @@ from typing import Dict, Any, List
 import ale_py
 import gymnasium as gym
 import numpy as np
-from stable_baselines3 import DQN
+from stable_baselines3.dqn.dqn_cop import DQN
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv, VecTransposeImage
 from stable_baselines3.common.atari_wrappers import AtariWrapper
