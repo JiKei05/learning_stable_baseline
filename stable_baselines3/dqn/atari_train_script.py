@@ -8,7 +8,7 @@ import ale_py
 import gymnasium as gym
 import numpy as np
 from stable_baselines3.dqn.dqn_cop import DQN
-from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
+from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback, CallbackList
 from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv, VecTransposeImage
 from stable_baselines3.common.atari_wrappers import AtariWrapper
 from stable_baselines3.common.monitor import Monitor
@@ -91,7 +91,7 @@ def train_single_run(
     eval_env = VecTransposeImage(eval_env) if config['env']['atari'] else eval_env
     
 
-    actual_eval_freq = config['logging']['eval_freq'] // config['env']['n_envs']
+    actual_eval_freq = config['logging']['eval_freq'] // config['env'].get('n_envs', 1)
     eval_callback = EvalCallback(
         eval_env,
         best_model_save_path=run_dir,
@@ -102,6 +102,15 @@ def train_single_run(
         verbose=config['logging'].get('verbose', 0),
         #tag=f"{config['logging'].get('run_tag', 'default')}_{config_name}_{seed}"
     )
+
+    actual_model_save_freq = config['logging']['eval_freq'] // config['env'].get('n_envs', 1)
+    checkpoint_callback = CheckpointCallback(
+        save_freq=actual_model_save_freq,
+        save_path=run_dir,
+        name_prefix="check_dip",
+    )
+
+    callbacks = CallbackList([checkpoint_callback, eval_callback])
 
     
     # Configure SB3 logger with specified formats
@@ -119,23 +128,23 @@ def train_single_run(
     model_params = config[config_name]['params']
 
     # Only add EvalCallback if the algorithm is not DGPI
-    callbacks = [] #metrics_callback
-    if algo_type != "dgpi":
-        actual_eval_freq = config['logging']['eval_freq'] // config['env'].get('n_envs', 1)
-        eval_callback = EvalCallback(
-            eval_env,
-            best_model_save_path=run_dir,
-            log_path=run_dir,
-            eval_freq=actual_eval_freq,
-            n_eval_episodes=config['logging']['n_eval_episodes'],
-            deterministic=True,
-            verbose=config['logging'].get('verbose', 0),
-            #tag=tag
-        )
-        callbacks.append(eval_callback)
-    else:
-        model_params['tag'] = tag
-        model_params['eval_env'] = eval_env
+    # callbacks = [] #metrics_callback
+    # if algo_type != "dgpi":
+    #     actual_eval_freq = config['logging']['eval_freq'] // config['env'].get('n_envs', 1)
+    #     eval_callback = EvalCallback(
+    #         eval_env,
+    #         best_model_save_path=run_dir,
+    #         log_path=run_dir,
+    #         eval_freq=actual_eval_freq,
+    #         n_eval_episodes=config['logging']['n_eval_episodes'],
+    #         deterministic=True,
+    #         verbose=config['logging'].get('verbose', 0),
+    #         #tag=tag
+    #     )
+    #     callbacks.append(eval_callback)
+    # else:
+    #     model_params['tag'] = tag
+    #     model_params['eval_env'] = eval_env
 
 
     model = algo_class(
