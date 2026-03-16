@@ -23,7 +23,6 @@ class NoisyLinear(nn.Linear):
 
         self.sigma_init = sigma_init
         self.reset_noise_parameters()
-        self.reset_noise
 
     def reset_noise_parameters(self):
         #super().reset_parameters()
@@ -31,23 +30,21 @@ class NoisyLinear(nn.Linear):
         self.bias_sig.data.fill_(self.sigma_init / np.sqrt(self.out_features))
 
     def reset_noise(self):
-        epsilon_in = self._scale_noise(self.in_features)
-        epsilon_out = self._scale_noise(self.out_features)
+        epsilon_in = self.scale_noise(self.in_features)
+        epsilon_out = self.scale_noise(self.out_features)
         self.weight_noise.copy_(epsilon_out.outer(epsilon_in))
         self.bias_noise.copy_(epsilon_out)
 
     
-    def _scale_noise(self, size):
+    def scale_noise(self, size):
         x = th.randn(size)
         return x.sign() * x.abs().sqrt()
 
     def forward(self, x):
         if self.training:
-            # Use self.weight (inherited) instead of self.weight_mu
             weight = self.weight + self.weight_sig * self.weight_noise
             bias = self.bias + self.bias_sig * self.bias_noise
         else:
-            # Just use inherited weight and bias
             weight = self.weight
             bias = self.bias
         return nn.functional.linear(x, weight, bias)
