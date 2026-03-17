@@ -103,7 +103,7 @@ def train_single_run(
         #tag=f"{config['logging'].get('run_tag', 'default')}_{config_name}_{seed}"
     )
 
-    if config['logging']['model_save_freq'] is not None:
+    if config['logging']['model_save_freq'] != 0:
         actual_model_save_freq = config['logging']['model_save_freq'] // config['env'].get('n_envs', 1)
         checkpoint_callback = CheckpointCallback(
             save_freq=actual_model_save_freq,
