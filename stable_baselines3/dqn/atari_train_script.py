@@ -103,14 +103,17 @@ def train_single_run(
         #tag=f"{config['logging'].get('run_tag', 'default')}_{config_name}_{seed}"
     )
 
-    actual_model_save_freq = config['logging']['eval_freq'] // config['env'].get('n_envs', 1)
-    checkpoint_callback = CheckpointCallback(
-        save_freq=actual_model_save_freq,
-        save_path=run_dir,
-        name_prefix="check_dip",
-    )
+    if config['logging']['model_save_freq'] is not None:
+        actual_model_save_freq = config['logging']['model_save_freq'] // config['env'].get('n_envs', 1)
+        checkpoint_callback = CheckpointCallback(
+            save_freq=actual_model_save_freq,
+            save_path=run_dir,
+            name_prefix="check_dip",
+        )
 
-    callbacks = CallbackList([checkpoint_callback, eval_callback])
+        callbacks = CallbackList([checkpoint_callback, eval_callback])
+    
+    else: callbacks = eval_callback
 
     
     # Configure SB3 logger with specified formats
