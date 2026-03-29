@@ -152,7 +152,7 @@ def train_single_run(
 
 
     model = algo_class(
-        policy="MlpPolicy",
+        policy="CnnPolicy" if config['env']['atari'] else "MlpPolicy",
         env=env,
         verbose=config['logging'].get('verbose', 0),
         seed=seed,

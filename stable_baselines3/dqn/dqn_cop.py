@@ -115,6 +115,7 @@ class DQN(OffPolicyAlgorithm):
         exponent_B: Optional[float] = 0.5,
         duel: bool = False,
         noisy: bool = False,
+        distibutional: tuple = None,
     ) -> None:
         super().__init__(
             policy,
@@ -155,8 +156,13 @@ class DQN(OffPolicyAlgorithm):
         self.exponent_B = exponent_B
         self.duel = duel
         self.noisy = noisy
-        print('dev')
-        print(self.device)
+        self.support = th.linspace(distibutional) if distibutional is not None else None
+        
+        
+        print(self.use_second_net)
+        print(self.prio_replay)
+        print(self.duel)
+        print(self.noisy)
         # For updating the target network with multiple envs:
         self._n_calls = 0
         self.max_grad_norm = max_grad_norm
