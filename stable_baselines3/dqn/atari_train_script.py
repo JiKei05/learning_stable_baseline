@@ -38,8 +38,10 @@ def setup_env(config: Dict[str, Any], seed: int, monitor_dir: str = None):
         make_env(env_id, i, seed, monitor_dir, atari) 
         for i in range(n_envs)
     ])
-    if atari:
-        env = VecFrameStack(env, n_stack=config['env']['n_stack'])
+
+    stack = config['env']['n_stack']
+    if stack != 0 :
+        env = VecFrameStack(env, n_stack=stack)
     
     return env
 
