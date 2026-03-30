@@ -107,9 +107,10 @@ def train_single_run(
     )
 
     if config['logging']['model_save_freq'] != 0:
-        actual_model_save_freq = config['logging']['model_save_freq'] // config['env'].get('n_envs', 1)
+        actual_model_save_freq = config['logging']['model_save_freq'] // config['env'].get('n_envs', 1) 
         checkpoint_callback = CheckpointCallback(
             save_freq=actual_model_save_freq,
+            save_replay_buffer=config['logging']['save_buffer'],
             save_path=run_dir,
             name_prefix="check_dip",
         )
