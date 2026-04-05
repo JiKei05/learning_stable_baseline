@@ -116,6 +116,7 @@ class DQN(OffPolicyAlgorithm):
         duel: bool = False,
         noisy: bool = False,
         distibutional: tuple = None,
+        double: bool = False,
     ) -> None:
         super().__init__(
             policy,
@@ -156,6 +157,7 @@ class DQN(OffPolicyAlgorithm):
         self.exponent_B = exponent_B
         self.duel = duel
         self.noisy = noisy
+        self.double = double
         self.support = th.linspace(distibutional) if distibutional is not None else None
         
         
@@ -163,6 +165,8 @@ class DQN(OffPolicyAlgorithm):
         print(self.prio_replay)
         print(self.duel)
         print(self.noisy)
+        print(type(policy_kwargs))
+        print(policy)
         # For updating the target network with multiple envs:
         self._n_calls = 0
         self.max_grad_norm = max_grad_norm
@@ -235,14 +239,23 @@ class DQN(OffPolicyAlgorithm):
             # For n-step replay, discount factor is gamma**n_steps (when no early termination)
             discounts = replay_data.discounts if replay_data.discounts is not None else self.gamma
             with th.no_grad():
+                if self.double and self.use_second_net:
+                    # Selecting the best action a with maximum Q-value of next state with the policy network
+                    actions = self.q_net(replay_data.next_observations)
+                    best_actions = actions.argmax(dim=1, keepdim=True) 
+                    # Calculating the estimated Q-value with action a selected above
+                    target_net_actions = self.q_net_target(replay_data.next_observations)
+                    next_q_values = th.gather(target_net_actions, dim=1, index=best_actions)
+                    target_q_values = replay_data.rewards + (1 - replay_data.dones) * discounts * next_q_values
+                else:
                 # Compute the next Q-values using the target network                   
-                next_q_values = self.q_net_target(replay_data.next_observations) if self.use_second_net else self.q_net(replay_data.next_observations)
-                # Follow greedy policy: use the one with the highest value
-                next_q_values, _ = next_q_values.max(dim=1)
-                # Avoid potential broadcast issue
-                next_q_values = next_q_values.reshape(-1, 1)
-                # 1-step TD target
-                target_q_values = replay_data.rewards + (1 - replay_data.dones) * discounts * next_q_values
+                    next_q_values = self.q_net_target(replay_data.next_observations) if self.use_second_net else self.q_net(replay_data.next_observations)
+                    # Follow greedy policy: use the one with the highest value
+                    next_q_values, _ = next_q_values.max(dim=1)
+                    # Avoid potential broadcast issue
+                    next_q_values = next_q_values.reshape(-1, 1)
+                    # 1-step TD target
+                    target_q_values = replay_data.rewards + (1 - replay_data.dones) * discounts * next_q_values
             self.policy.set_training_mode(True)    
 
             # Get current Q-values estimates
@@ -412,46 +425,46 @@ class DQN(OffPolicyAlgorithm):
         self.logger.record("train/loss", loss)
 
 
-def learn(
-    self: SelfDQN,
-    total_timesteps: int,
-    callback: MaybeCallback = None,
-    log_interval: int = 4,
-    tb_log_name: str = "DQN",
-    reset_num_timesteps: bool = True,
-    progress_bar: bool = False,
-) -> SelfDQN:
-    if self.use_buffer:
-        return super().learn(
-            total_timesteps=total_timesteps,
-            callback=callback,
-            log_interval=log_interval,
-            tb_log_name=tb_log_name,
-            reset_num_timesteps=reset_num_timesteps,
-            progress_bar=progress_bar,
-            )
-    else:
-        observation = self.env.reset()
-
-        while self.num_timesteps < total_timesteps:
-
-            acted = self.act(
-                train_freq=self.train_freq,
-                action_noise=self.action_noise,
+    def learn(
+        self: SelfDQN,
+        total_timesteps: int,
+        callback: MaybeCallback = None,
+        log_interval: int = 4,
+        tb_log_name: str = "DQN",
+        reset_num_timesteps: bool = True,
+        progress_bar: bool = False,
+    ) -> SelfDQN:
+        if self.use_buffer:
+            return super().learn(
+                total_timesteps=total_timesteps,
                 callback=callback,
-                learning_starts=self.learning_starts,
-                replay_buffer=self.replay_buffer,
                 log_interval=log_interval,
-                curr_obs=observation
+                tb_log_name=tb_log_name,
+                reset_num_timesteps=reset_num_timesteps,
+                progress_bar=progress_bar,
                 )
-            
-            if not acted.continue_training:
-                break
+        else:
+            observation = self.env.reset()
 
-            self.train_no_buffer(acted.observation, acted.next_observation, acted.reward, acted.done)
-            observation = acted.next_observation
+            while self.num_timesteps < total_timesteps:
 
-        callback.on_training_end()    
+                acted = self.act(
+                    train_freq=self.train_freq,
+                    action_noise=self.action_noise,
+                    callback=callback,
+                    learning_starts=self.learning_starts,
+                    replay_buffer=self.replay_buffer,
+                    log_interval=log_interval,
+                    curr_obs=observation
+                    )
+                
+                if not acted.continue_training:
+                    break
+
+                self.train_no_buffer(acted.observation, acted.next_observation, acted.reward, acted.done)
+                observation = acted.next_observation
+
+            callback.on_training_end()    
 
 
 
