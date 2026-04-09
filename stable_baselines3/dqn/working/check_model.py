@@ -188,11 +188,13 @@ def make_env(env_id: str):
 
 def main():
     args = parse_args()
+    print("Starting")
 
     env = DummyVecEnv([make_env(args.env_id)])
     env = VecFrameStack(env, n_stack=args.n_stack)
 
     model = DQN.load(args.model_path, env=env)
+    print("loaded model")
 
     results = []
 
@@ -202,6 +204,7 @@ def main():
     episode_idx = 0
 
     while episode_idx < args.n_episodes:
+        print(episode_idx)
         action, _ = model.predict(obs, deterministic=args.deterministic)
         obs, rewards, dones, infos = env.step(action)
 
