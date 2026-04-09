@@ -117,129 +117,142 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 #     main()
 
 import csv
-import os
+import argparse
 from pathlib import Path
 import ale_py
 import gymnasium as gym
 import numpy as np
 from stable_baselines3 import DQN
-from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecTransposeImage
+from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
 from stable_baselines3.common.atari_wrappers import AtariWrapper
 from stable_baselines3.common.monitor import Monitor
 
 
-# =========================
-# CONFIG
-# =========================
-MODEL_PATH = "D:/Aalto_stuff/learning_stable_baseline/stable_baselines3/dqn/working/best_model.zip"
-ENV_ID = "BreakoutNoFrameskip-v4"
-N_EPISODES = 20
-N_STACK = 4
-DETERMINISTIC = True
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Evaluate an SB3 DQN model for N episodes and save raw episode rewards to CSV."
+    )
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        required=True,
+        help="Path to the trained model zip file, e.g. ./best_model.zip",
+    )
+    parser.add_argument(
+        "--csv_path",
+        type=str,
+        required=True,
+        help="Path to save the CSV results, e.g. ./evaluation_results.csv",
+    )
+    parser.add_argument(
+        "--env_id",
+        type=str,
+        default="BreakoutNoFrameskip-v4",
+        help="Gymnasium environment ID",
+    )
+    parser.add_argument(
+        "--n_episodes",
+        type=int,
+        default=20,
+        help="Number of evaluation episodes",
+    )
+    parser.add_argument(
+        "--n_stack",
+        type=int,
+        default=4,
+        help="Number of stacked frames",
+    )
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="Use deterministic actions during evaluation",
+    )
+    return parser.parse_args()
 
-CSV_PATH = "D:\Aalto_stuff\learning_stable_baseline\stable_baselines3\dqn\working\/evaluation_results.csv"
 
-
-# =========================
-# ENV CREATION
-# =========================
-def make_env():
+def make_env(env_id: str):
     def _init():
-        env = gym.make(ENV_ID)
-
-        # Monitor stores episode info cleanly
+        env = gym.make(env_id)
         env = Monitor(env)
 
-        # IMPORTANT:
-        # We keep Atari preprocessing, but disable reward clipping
-        # so the logged rewards are RAW game scores.
+        # Keep Atari preprocessing, but do NOT clip rewards
         env = AtariWrapper(
             env,
-            clip_reward=False,          # raw rewards, not {-1,0,1}
-            terminal_on_life_loss=False # better for evaluation
+            clip_reward=False,
+            terminal_on_life_loss=False,
         )
         return env
+
     return _init
 
 
-# =========================
-# LOAD ENV + MODEL
-# =========================
-env = DummyVecEnv([make_env()])
-env = VecFrameStack(env, n_stack=N_STACK)
+def main():
+    args = parse_args()
 
-# Depending on your setup, this may or may not be needed.
-# For standard Atari CNN policies in SB3, it is often safe to leave out.
-# Uncomment only if your training pipeline used channel transposition separately.
-# env = VecTransposeImage(env)
+    env = DummyVecEnv([make_env(args.env_id)])
+    env = VecFrameStack(env, n_stack=args.n_stack)
 
-model = DQN.load(MODEL_PATH, env=env)
+    model = DQN.load(args.model_path, env=env)
+
+    results = []
+
+    obs = env.reset()
+    episode_reward = 0.0
+    episode_length = 0
+    episode_idx = 0
+
+    while episode_idx < args.n_episodes:
+        action, _ = model.predict(obs, deterministic=args.deterministic)
+        obs, rewards, dones, infos = env.step(action)
+
+        reward = float(rewards[0])
+        done = bool(dones[0])
+
+        episode_reward += reward
+        episode_length += 1
+
+        if done:
+            results.append(
+                {
+                    "episode": episode_idx + 1,
+                    "reward": episode_reward,
+                    "length": episode_length,
+                }
+            )
+
+            print(
+                f"Episode {episode_idx + 1}: "
+                f"reward={episode_reward:.2f}, length={episode_length}"
+            )
+
+            episode_idx += 1
+            episode_reward = 0.0
+            episode_length = 0
+            obs = env.reset()
+
+    csv_path = Path(args.csv_path)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["episode", "reward", "length"])
+        writer.writeheader()
+        writer.writerows(results)
+
+    all_rewards = [r["reward"] for r in results]
+    avg_reward = float(np.mean(all_rewards))
+    std_reward = float(np.std(all_rewards))
+    min_reward = float(np.min(all_rewards))
+    max_reward = float(np.max(all_rewards))
+
+    print("\n===== Evaluation Summary =====")
+    print(f"Model: {args.model_path}")
+    print(f"Episodes: {args.n_episodes}")
+    print(f"Average reward: {avg_reward:.2f}")
+    print(f"Std reward: {std_reward:.2f}")
+    print(f"Min reward: {min_reward:.2f}")
+    print(f"Max reward: {max_reward:.2f}")
+    print(f"CSV saved to: {csv_path.resolve()}")
 
 
-# =========================
-# EVALUATION LOOP
-# =========================
-results = []
-
-obs = env.reset()
-episode_reward = 0.0
-episode_length = 0
-episode_idx = 0
-
-while episode_idx < N_EPISODES:
-    action, _ = model.predict(obs, deterministic=DETERMINISTIC)
-    obs, rewards, dones, infos = env.step(action)
-
-    # rewards is shape (n_envs,), here n_envs = 1
-    reward = float(rewards[0])
-    done = bool(dones[0])
-    info = infos[0]
-
-    episode_reward += reward
-    episode_length += 1
-
-    if done:
-        results.append({
-            "episode": episode_idx + 1,
-            "reward": episode_reward,
-            "length": episode_length,
-        })
-
-        print(f"Episode {episode_idx + 1}: reward={episode_reward:.2f}, length={episode_length}")
-
-        episode_idx += 1
-        episode_reward = 0.0
-        episode_length = 0
-
-        obs = env.reset()
-
-
-# =========================
-# SAVE CSV
-# =========================
-csv_path = Path(CSV_PATH)
-csv_path.parent.mkdir(parents=True, exist_ok=True)
-
-with open(csv_path, "w", newline="", encoding="utf-8") as f:
-    writer = csv.DictWriter(f, fieldnames=["episode", "reward", "length"])
-    writer.writeheader()
-    writer.writerows(results)
-
-
-# =========================
-# SUMMARY
-# =========================
-all_rewards = [r["reward"] for r in results]
-avg_reward = float(np.mean(all_rewards))
-std_reward = float(np.std(all_rewards))
-min_reward = float(np.min(all_rewards))
-max_reward = float(np.max(all_rewards))
-
-print("\n===== Evaluation Summary =====")
-print(f"Model: {MODEL_PATH}")
-print(f"Episodes: {N_EPISODES}")
-print(f"Average reward: {avg_reward:.2f}")
-print(f"Std reward: {std_reward:.2f}")
-print(f"Min reward: {min_reward:.2f}")
-print(f"Max reward: {max_reward:.2f}")
-print(f"CSV saved to: {csv_path.resolve()}")
+if __name__ == "__main__":
+    main()
