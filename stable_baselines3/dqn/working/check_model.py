@@ -204,7 +204,6 @@ def main():
     episode_idx = 0
 
     while episode_idx < args.n_episodes:
-        print(episode_idx)
         action, _ = model.predict(obs, deterministic=args.deterministic)
         obs, rewards, dones, infos = env.step(action)
 
