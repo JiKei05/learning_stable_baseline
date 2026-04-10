@@ -22,9 +22,11 @@ from pathlib import Path
 
 def make_env(env_id: str, rank: int, seed: int = 0, monitor_dir: str = None, atari: bool = False):
     def _init():
-        env = AtariWrapper(gym.make(env_id)) if atari else gym.make(env_id)
         if monitor_dir:
             env = Monitor(env, os.path.join(monitor_dir, str(rank)))
+        env = AtariWrapper(gym.make(env_id)) if atari else gym.make(env_id)
+        # if monitor_dir:
+        #     env = Monitor(env, os.path.join(monitor_dir, str(rank)))
         env.reset(seed=seed+rank)
         return env
     return _init
