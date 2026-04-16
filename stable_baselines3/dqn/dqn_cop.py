@@ -18,7 +18,7 @@ from stable_baselines3.common.buffers import ReplayBuffer, PrioritizedReplayBuff
 from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
 from stable_baselines3.common.policies import BasePolicy
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
-from stable_baselines3.common.utils import LinearSchedule, get_parameters_by_name, polyak_update
+from stable_baselines3.common.utils import LinearSchedule, get_parameters_by_name, polyak_update, dist
 from stable_baselines3.dqn.policies import CnnPolicy, DQNPolicy, MlpPolicy, MultiInputPolicy, QNetwork
 
 SelfDQN = TypeVar("SelfDQN", bound="DQN")
@@ -115,7 +115,7 @@ class DQN(OffPolicyAlgorithm):
         exponent_B: Optional[float] = 0.5,
         duel: bool = False,
         noisy: bool = False,
-        distibutional: tuple = None,
+        distibutional: int = 0,
         double: bool = False,
     ) -> None:
         super().__init__(
@@ -158,7 +158,14 @@ class DQN(OffPolicyAlgorithm):
         self.duel = duel
         self.noisy = noisy
         self.double = double
-        self.support = th.linspace(distibutional) if distibutional is not None else None
+        self.loss_F = F.smooth_l1_loss
+        self.distributional = distibutional
+        if self.distributional:
+            self.Vmin = 0
+            self.Vmax = 10
+            self.support = th.linspace(self.Vmin, self.Vmax, distibutional).to(self.device)
+            self.loss_F = F.kl_div
+            
         
         
         print(self.use_second_net)
@@ -239,7 +246,7 @@ class DQN(OffPolicyAlgorithm):
             # For n-step replay, discount factor is gamma**n_steps (when no early termination)
             discounts = replay_data.discounts if replay_data.discounts is not None else self.gamma
             with th.no_grad():
-                if self.double and self.use_second_net:
+                if self.double:
                     # Selecting the best action a with maximum Q-value of next state with the policy network
                     actions = self.q_net(replay_data.next_observations)
                     best_actions = actions.argmax(dim=1, keepdim=True) 
@@ -247,6 +254,10 @@ class DQN(OffPolicyAlgorithm):
                     target_net_actions = self.q_net_target(replay_data.next_observations)
                     next_q_values = th.gather(target_net_actions, dim=1, index=best_actions)
                     target_q_values = replay_data.rewards + (1 - replay_data.dones) * discounts * next_q_values
+                elif self.distributional:
+                    target_q_values = dist(self.q_net(replay_data.next_observations), self.support, replay_data.rewards, self.Vmin, 
+                                          self.Vmax, self.gamma, self.distributional, batch_size, replay_data.dones, self.device)
+                    target_q_values = target_q_values.reshape(32, 51)
                 else:
                 # Compute the next Q-values using the target network                   
                     next_q_values = self.q_net_target(replay_data.next_observations) if self.use_second_net else self.q_net(replay_data.next_observations)
@@ -262,7 +273,12 @@ class DQN(OffPolicyAlgorithm):
             current_q_values = self.q_net(replay_data.observations)
 
             # Retrieve the q-values for the actions from the replay buffer
-            current_q_values = th.gather(current_q_values, dim=1, index=replay_data.actions.long())
+            
+            if self.distributional: 
+                actions = replay_data.actions.long()   
+                actions = actions.unsqueeze(-1).expand(-1, -1, self.distributional)   # [32, 1, 51]
+            current_q_values = th.gather(current_q_values, dim=1, index=actions)
+            current_q_values = F.log_softmax(current_q_values)
 
             #TODO: Check this again
             if self.prio_replay:
@@ -272,10 +288,10 @@ class DQN(OffPolicyAlgorithm):
                 #Compute the TD-error in case of using PrioritizedReplayBuffer
                 td_error = target_q_values - current_q_values
                 self.replay_buffer.update(td_error.detach().cpu().numpy())
-                loss_per_sample = F.smooth_l1_loss(current_q_values, target_q_values, reduction='none') * th.from_numpy(weights).float().to(self.device)
+                loss_per_sample = self.loss_F(current_q_values, target_q_values, reduction='none') * th.from_numpy(weights).float().to(self.device)
 
-            # Compute Huber loss (less sensitive to outliers)           
-            loss = loss_per_sample.sum() if self.prio_replay else F.smooth_l1_loss(current_q_values, target_q_values)
+            # Compute Huber loss (less sensitive to outliers)      
+            loss = loss_per_sample.sum() if self.prio_replay else self.loss_F(current_q_values, target_q_values)
             losses.append(loss.item())
 
             # Optimize the policy

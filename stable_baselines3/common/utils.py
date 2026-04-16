@@ -638,3 +638,35 @@ def get_system_info(print_info: bool = True) -> tuple[dict[str, str], str]:
     if print_info:
         print(env_info_str)
     return env_info, env_info_str
+
+def dist(dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size, done, device):
+    
+    delta_z = (Vmax - Vmin) / (N_atoms - 1)
+
+    distribution = dist * support
+    actions = distribution.sum(2).max(1)[1]
+    batch_idx = th.arange(distribution.size(0))
+    action_dist = distribution[batch_idx, actions]
+    rewards = rewards.expand_as(action_dist)
+    support = support.unsqueeze(0).expand_as(action_dist)
+    Tz = rewards + (1 - done) * discount * support
+    Tz = Tz.clamp(Vmin, Vmax)
+    b = (Tz - Vmin) / delta_z
+    u = b.ceil().long()
+    l = b.floor().long()
+    offset = th.linspace(0, ((batch_size-1) * N_atoms), batch_size).long().\
+                        unsqueeze(1).expand(batch_size, N_atoms).to(device)
+
+    projected_dist = th.zeros_like(action_dist)
+
+
+    lower_indices = (l + offset).view(-1)
+    lower_values = (action_dist*(u.float()-b)).view(-1)
+    upper_indices = (u + offset).view(-1)
+    upper_values = (action_dist*(b-l.float())).view(-1)
+
+
+    projected_dist = projected_dist.view(-1).index_add_(0, lower_indices, lower_values)
+    projected_dist = projected_dist.view(-1).index_add_(0, upper_indices, upper_values)
+    
+    return projected_dist

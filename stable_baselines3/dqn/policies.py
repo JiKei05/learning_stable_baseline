@@ -3,6 +3,7 @@ from typing import Any, Optional
 import torch as th
 from gymnasium import spaces
 from torch import nn
+from typing import Union
 
 from stable_baselines3.common.policies import BasePolicy
 from stable_baselines3.common.torch_layers import (
@@ -38,6 +39,8 @@ class QNetwork(BasePolicy):
         features_extractor: BaseFeaturesExtractor,
         features_dim: int,
         duel: bool = False,
+        distributional: int = 0,
+        #device: Union[th.device, str] = "auto",
         linear_layer: type[nn.Linear] = nn.Linear,
         net_arch: Optional[list[int]] = None,
         activation_fn: type[nn.Module] = nn.ReLU,
@@ -58,13 +61,20 @@ class QNetwork(BasePolicy):
         self.net_arch = net_arch
         self.activation_fn = activation_fn
         self.features_dim = features_dim
-        action_dim = int(self.action_space.n)  # number of actions
-        q_net = duel_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer) if self.duel else create_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer)
+        self.action_dim = int(self.action_space.n)  # number of actions
+        self.distributional = distributional
+        #self.device = device
+        q_net = duel_mlp(self.features_dim, self.action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer) if self.duel else create_mlp(self.features_dim, self.action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer, distributional=self.distributional)
         if self.duel:
             self.q_net = q_net[0]
             self.adv = q_net[1]
             self.val = q_net[2]
         else: self.q_net = nn.Sequential(*q_net) 
+
+        if self.distributional:
+            self.Vmin = 0
+            self.Vmax = 10
+            self.support = th.linspace(self.Vmin, self.Vmax, self.distributional)
 
 
     def forward(self, obs: PyTorchObs) -> th.Tensor:
@@ -80,12 +90,19 @@ class QNetwork(BasePolicy):
             x_val = self.val(x)
             return x_val + x_adv - th.mean(x_adv, dim=1, keepdim=True)
 
-        return self.q_net(self.extract_features(obs, self.features_extractor))
+        ret = self.q_net(self.extract_features(obs, self.features_extractor))
+        if self.distributional != 0:
+            ret = ret.view((-1, self.action_dim, self.distributional))     
+
+        return ret
 
     def _predict(self, observation: PyTorchObs, deterministic: bool = True) -> th.Tensor:
         q_values = self(observation)
         # Greedy action
-        action = q_values.argmax(dim=1).reshape(-1)
+        if self.distributional:
+            distribution = q_values * self.support.to(q_values.device)
+            action = distribution.sum(2).max(1)[1]
+        else: action = q_values.argmax(dim=1).reshape(-1)
         return action
 
     def _get_constructor_parameters(self) -> dict[str, Any]:
@@ -139,6 +156,8 @@ class DQNPolicy(BasePolicy):
         optimizer_kwargs: Optional[dict[str, Any]] = None,
         duel: bool = False,
         noisy: bool = False,
+        #device: Union[th.device, str] = "auto",
+        distributional: int = 0,
     ) -> None:
         super().__init__(
             observation_space,
@@ -160,6 +179,7 @@ class DQNPolicy(BasePolicy):
         self.activation_fn = activation_fn
         self.duel = duel #activate duel network
         self.noisy = NoisyLinear if noisy else nn.Linear
+        self.distributional = distributional
 
         self.net_args = {
             "observation_space": self.observation_space,
@@ -205,7 +225,7 @@ class DQNPolicy(BasePolicy):
         # Make sure we always have separate networks for features extractors etc
         net_args = self._update_features_extractor(self.net_args, features_extractor=None)
         print(net_args)
-        return QNetwork(duel=self.duel, linear_layer=self.noisy, **net_args).to(self.device)
+        return QNetwork(distributional = self.distributional, duel=self.duel, linear_layer=self.noisy, **net_args).to(self.device)
 
     def forward(self, obs: PyTorchObs, deterministic: bool = True) -> th.Tensor:
         return self._predict(obs, deterministic=deterministic)
@@ -279,7 +299,9 @@ class CnnPolicy(DQNPolicy):
         optimizer_class: type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[dict[str, Any]] = None,
         duel: bool = False,
-        noisy: bool = False
+        noisy: bool = False,
+        #device: Union[th.device, str] = "auto", 
+        distributional: int = 0,
     ) -> None:
         super().__init__(
             observation_space,
@@ -293,7 +315,9 @@ class CnnPolicy(DQNPolicy):
             optimizer_class,
             optimizer_kwargs,
             duel,
-            noisy
+            noisy,
+            #device,
+            distributional,
         )
 
 

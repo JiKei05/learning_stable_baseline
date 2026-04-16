@@ -110,6 +110,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         supported_action_spaces: Optional[tuple[type[spaces.Space], ...]] = None,
         duel: bool = False,
         noisy: bool = False,
+        distributional: int = 0,
     ):
         super().__init__(
             policy=policy,
@@ -141,6 +142,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         self.n_steps = n_steps
         self.duel = duel
         self.noisy = noisy
+        self.distributional = distributional
 
         # Save train freq parameter, will be converted later to TrainFreq object
         self.train_freq = train_freq
@@ -201,7 +203,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 self.buffer_size,
                 self.observation_space,
                 self.action_space,
-                device=self.device,
+                #device=self.device,
                 n_envs=self.n_envs,
                 optimize_memory_usage=self.optimize_memory_usage,
                 **replay_buffer_kwargs,
@@ -213,6 +215,8 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             self.lr_schedule,
             duel = self.duel,
             noisy = self.noisy,
+            distributional = self.distributional,
+            #device = self.device,
             **self.policy_kwargs,
         )
         self.policy = self.policy.to(self.device)
