@@ -115,7 +115,7 @@ class DQN(OffPolicyAlgorithm):
         exponent_B: Optional[float] = 0.5,
         duel: bool = False,
         noisy: bool = False,
-        distibutional: int = 0,
+        distributional: int = 0,
         double: bool = False,
     ) -> None:
         super().__init__(
@@ -159,11 +159,11 @@ class DQN(OffPolicyAlgorithm):
         self.noisy = noisy
         self.double = double
         self.loss_F = F.smooth_l1_loss
-        self.distributional = distibutional
+        self.distributional = distributional
         if self.distributional:
             self.Vmin = 0
             self.Vmax = 10
-            self.support = th.linspace(self.Vmin, self.Vmax, distibutional).to(self.device)
+            self.support = th.linspace(self.Vmin, self.Vmax, self.distributional).to(self.device)
             self.loss_F = F.kl_div
             
         
