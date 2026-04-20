@@ -164,8 +164,8 @@ class DQN(OffPolicyAlgorithm):
         self.loss_F = F.smooth_l1_loss
         self.distributional = distributional
         if self.distributional:
-            self.Vmin = 0
-            self.Vmax = 100
+            self.Vmin = -10
+            self.Vmax = 10
             self.support = th.linspace(self.Vmin, self.Vmax, self.distributional).to(self.device)
             self.loss_F = F.kl_div
             
