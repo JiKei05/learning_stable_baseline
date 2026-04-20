@@ -111,6 +111,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         duel: bool = False,
         noisy: bool = False,
         distributional: int = 0,
+        exponent_B: Optional[float] = 0.4,
     ):
         super().__init__(
             policy=policy,
@@ -143,6 +144,8 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         self.duel = duel
         self.noisy = noisy
         self.distributional = distributional
+        self.exponent_B = exponent_B
+        self.exponent_B0 = exponent_B
 
         # Save train freq parameter, will be converted later to TrainFreq object
         self.train_freq = train_freq
@@ -345,6 +348,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             rollout = self.collect_rollouts(
                 self.env,
                 train_freq=self.train_freq,
+                total_timesteps=total_timesteps,
                 action_noise=self.action_noise,
                 callback=callback,
                 learning_starts=self.learning_starts,
@@ -526,6 +530,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         callback: BaseCallback,
         train_freq: TrainFreq,
         replay_buffer: ReplayBuffer,
+        total_timesteps: int,
         action_noise: Optional[ActionNoise] = None,
         learning_starts: int = 0,
         log_interval: Optional[int] = None,
@@ -577,6 +582,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             new_obs, rewards, dones, infos = env.step(actions)
 
             self.num_timesteps += env.num_envs
+            self.exponent_B = self.exponent_B0 + (1-self.exponent_B0) * min(self.num_timesteps / total_timesteps, 1.0)
             num_collected_steps += 1
 
             # Give access to local variables

@@ -153,7 +153,7 @@ class DQNPolicy(BasePolicy):
         features_extractor_kwargs: Optional[dict[str, Any]] = None,
         normalize_images: bool = True,
         optimizer_class: type[th.optim.Optimizer] = th.optim.Adam,
-        optimizer_kwargs: Optional[dict[str, Any]] = None,
+        optimizer_kwargs: Optional[dict[str, Any]] = {"eps": 1.5e-4},
         duel: bool = False,
         noisy: bool = False,
         #device: Union[th.device, str] = "auto",
@@ -214,6 +214,11 @@ class DQNPolicy(BasePolicy):
         for name, param in self.q_net.named_parameters():
             print(f"{name}: {param.shape}")
 
+        print('tar')
+
+        for name, param in self.q_net_target.named_parameters():
+            print(f"{name}: {param.shape}")
+
         # Setup optimizer with initial learning rate
         self.optimizer = self.optimizer_class(  # type: ignore[call-arg]
             self.q_net.parameters(),
@@ -224,6 +229,7 @@ class DQNPolicy(BasePolicy):
     def make_q_net(self) -> QNetwork:
         # Make sure we always have separate networks for features extractors etc
         net_args = self._update_features_extractor(self.net_args, features_extractor=None)
+        print('bruv')
         print(net_args)
         return QNetwork(distributional = self.distributional, duel=self.duel, linear_layer=self.noisy, **net_args).to(self.device)
 
