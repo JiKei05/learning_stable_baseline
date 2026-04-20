@@ -639,8 +639,8 @@ def get_system_info(print_info: bool = True) -> tuple[dict[str, str], str]:
         print(env_info_str)
     return env_info, env_info_str
 
-def dist(dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size, done, device):
-    
+def dist(dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size, done, device):  
+    print(dist.size())  
     delta_z = (Vmax - Vmin) / (N_atoms - 1)
 
     distribution = dist * support

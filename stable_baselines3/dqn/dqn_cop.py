@@ -177,6 +177,7 @@ class DQN(OffPolicyAlgorithm):
         print(self.noisy)
         print(type(policy_kwargs))
         print(policy)
+
         # For updating the target network with multiple envs:
         self._n_calls = 0
         self.max_grad_norm = max_grad_norm
@@ -257,10 +258,10 @@ class DQN(OffPolicyAlgorithm):
                     target_net_actions = self.q_net_target(replay_data.next_observations)
                     next_q_values = th.gather(target_net_actions, dim=1, index=best_actions)
                     target_q_values = replay_data.rewards + (1 - replay_data.dones) * discounts * next_q_values
+
                 elif self.distributional:
                     target_q_values = dist(self.q_net_target(replay_data.next_observations), self.support, replay_data.rewards, self.Vmin, 
                                           self.Vmax, self.gamma, self.distributional, batch_size, replay_data.dones, self.device)
-                    #print(str(target_q_values.size()) + 'a')
                     target_q_values = target_q_values.reshape(self.batch_size, self.distributional)
                 else:
                 # Compute the next Q-values using the target network                   
@@ -283,7 +284,7 @@ class DQN(OffPolicyAlgorithm):
                 actions = replay_data.actions.long()   
                 actions = actions.unsqueeze(-1).expand(-1, -1, self.distributional)   # [32, 1, 51]
                 current_q_values = th.gather(current_q_values, dim=1, index=actions)
-                current_q_values = F.log_softmax(current_q_values, dim=-1)
+                current_q_values = th.log(current_q_values.clamp(min=1e-8))
                 current_q_values = current_q_values.squeeze(1)
             else: current_q_values = th.gather(current_q_values, dim=1, index=replay_data.actions.long())
 

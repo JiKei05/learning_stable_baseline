@@ -188,7 +188,7 @@ def create_mlp(
     pre_linear_modules = pre_linear_modules or []
     post_linear_modules = post_linear_modules or []
 
-    if distributional != 0: output_dim = output_dim * distributional
+    if distributional: output_dim = output_dim * distributional
 
     modules = []
     if len(net_arch) > 0:
@@ -224,6 +224,8 @@ def create_mlp(
         modules.append(linear_layer(last_layer_dim, output_dim, bias=with_bias))
     if squash_output:
         modules.append(nn.Tanh())
+
+    if distributional: modules.append(nn.Softmax(dim=2))
     return modules
 
 def duel_mlp(
