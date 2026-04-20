@@ -225,7 +225,7 @@ def create_mlp(
     if squash_output:
         modules.append(nn.Tanh())
 
-    if distributional: modules.append(nn.Softmax(dim=2))
+    if distributional: modules.append(nn.Softmax())
     return modules
 
 def duel_mlp(
