@@ -647,6 +647,7 @@ def dist(dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size, done
     actions = distribution.sum(2).max(1)[1]
     batch_idx = th.arange(distribution.size(0))
     action_dist = distribution[batch_idx, actions]
+    #print(rewards.size())
     rewards = rewards.expand_as(action_dist)
     support = support.unsqueeze(0).expand_as(action_dist)
     Tz = rewards + (1 - done) * discount * support

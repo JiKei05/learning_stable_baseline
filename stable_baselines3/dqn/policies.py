@@ -92,7 +92,8 @@ class QNetwork(BasePolicy):
 
         ret = self.q_net(self.extract_features(obs, self.features_extractor))
         if self.distributional != 0:
-            ret = ret.view((-1, self.action_dim, self.distributional))     
+            ret = ret.view((-1, self.action_dim, self.distributional))   
+            ret = th.softmax(ret, dim=2)  
 
         return ret
 
