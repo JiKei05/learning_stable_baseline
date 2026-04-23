@@ -250,6 +250,14 @@ class DQN(OffPolicyAlgorithm):
             # For n-step replay, discount factor is gamma**n_steps (when no early termination)
             discounts = replay_data.discounts if replay_data.discounts is not None else self.gamma
             with th.no_grad():
+                
+                print("Mismatch")
+                print("self.device:", self.device)
+                print("q_net device:", next(self.q_net.parameters()).device)
+                print("q_net_target device:", next(self.q_net_target.parameters()).device)
+                print("next_obs device:", replay_data.next_observations.device)
+                print("obs device:", replay_data.observations.device)
+
                 if self.double:
                     # Selecting the best action a with maximum Q-value of next state with the policy network
                     actions = self.q_net(replay_data.next_observations)
