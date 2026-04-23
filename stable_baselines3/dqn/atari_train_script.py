@@ -171,14 +171,13 @@ def train_single_run(
 
  
     try:
-        print('total_timesteps')
-        print(config['training']['total_timesteps'])
         model.learn(
             total_timesteps=config['training']['total_timesteps'],
             callback=callbacks,
             progress_bar=config['logging'].get('progress_bar', False)
         )
-        
+        print(model._total_timesteps)
+
         # Save final model in case resuming training is neccessary
         final_model_path = os.path.join(run_dir, "final_model")
         model.save(final_model_path)
