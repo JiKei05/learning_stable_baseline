@@ -639,8 +639,7 @@ def get_system_info(print_info: bool = True) -> tuple[dict[str, str], str]:
         print(env_info_str)
     return env_info, env_info_str
 
-def dist(dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size, done, device):  
-    print(dist.size())  
+def dist(dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size, done, device):   
     delta_z = (Vmax - Vmin) / (N_atoms - 1)
 
     distribution = dist * support
@@ -659,7 +658,6 @@ def dist(dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size, done
                         unsqueeze(1).expand(batch_size, N_atoms).to(device)
 
     projected_dist = th.zeros_like(action_dist)
-
 
     lower_indices = (l + offset).view(-1)
     lower_values = (action_dist*(u.float()-b)).view(-1)
