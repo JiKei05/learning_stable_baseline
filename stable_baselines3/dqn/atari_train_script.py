@@ -171,6 +171,8 @@ def train_single_run(
 
  
     try:
+        print('total_timesteps')
+        print(config['training']['total_timesteps'])
         model.learn(
             total_timesteps=config['training']['total_timesteps'],
             callback=callbacks,
