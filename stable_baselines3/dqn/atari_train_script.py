@@ -79,6 +79,7 @@ def train_single_run(
 ):
     # Set the torch device according to gpu_id
     if gpu_id >= 0:
+        torch.cuda.set_device(gpu_id)
         device = f"cuda:{gpu_id}"
     else:
         device = "cpu"
@@ -176,6 +177,7 @@ def train_single_run(
             callback=callbacks,
             progress_bar=config['logging'].get('progress_bar', False)
         )
+        print('count_time')
         print(model._total_timesteps)
 
         # Save final model in case resuming training is neccessary
