@@ -183,7 +183,7 @@ def train_single_run(
         # Save final model in case resuming training is neccessary
         final_model_path = os.path.join(run_dir, "final_model")
         model.save(final_model_path)
-        model.save_replay_buffer(final_model_path)
+        #model.save_replay_buffer(final_model_path)
 
     except Exception as e:
         logger.error(f"Training failed: {str(e)}")
