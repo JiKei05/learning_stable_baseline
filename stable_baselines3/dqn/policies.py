@@ -64,7 +64,7 @@ class QNetwork(BasePolicy):
         self.action_dim = int(self.action_space.n)  # number of actions
         self.distributional = distributional
         #self.device = device
-        q_net = duel_mlp(self.features_dim, self.action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer) if self.duel else create_mlp(self.features_dim, self.action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer, distributional=self.distributional)
+        q_net = duel_mlp(self.features_dim, self.action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer, distributional=self.distributional) if self.duel else create_mlp(self.features_dim, self.action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer, distributional=self.distributional)
         if self.duel:
             self.q_net = q_net[0]
             self.adv = q_net[1]
@@ -84,13 +84,14 @@ class QNetwork(BasePolicy):
         :param obs: Observation
         :return: The estimated Q-Value for each action.
         """
-        if self.duel:
-            x = self.q_net(self.extract_features(obs, self.features_extractor))
-            x_adv = self.adv(x)
-            x_val = self.val(x)
-            return x_val + x_adv - th.mean(x_adv, dim=1, keepdim=True)
 
         ret = self.q_net(self.extract_features(obs, self.features_extractor))
+
+        if self.duel:
+            x_adv = self.adv(ret)
+            x_val = self.val(ret)
+            ret = x_val + x_adv - th.mean(x_adv, dim=1, keepdim=True)
+
         if self.distributional != 0:
             ret = ret.view((-1, self.action_dim, self.distributional))   
             ret = th.softmax(ret, dim=2)  

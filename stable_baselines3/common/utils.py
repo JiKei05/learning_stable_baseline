@@ -639,13 +639,16 @@ def get_system_info(print_info: bool = True) -> tuple[dict[str, str], str]:
         print(env_info_str)
     return env_info, env_info_str
 
-def dist(dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size, done, device):   
+def dist(next_dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size, done, device, dist = None):   
     delta_z = (Vmax - Vmin) / (N_atoms - 1)
 
-    distribution = dist * support
-    actions = distribution.sum(2).max(1)[1]
-    batch_idx = th.arange(distribution.size(0))
-    action_dist = distribution[batch_idx, actions]
+    if dist is not None:
+        distribution = dist * support
+
+    next_distribution = next_dist * support
+    actions = distribution.sum(2).max(1)[1] if dist is not None else next_distribution.sum(2).max(1)[1]
+    batch_idx = th.arange(next_distribution.size(0))
+    action_dist = next_distribution[batch_idx, actions]
     #print(rewards.size())
     rewards = rewards.expand_as(action_dist)
     support = support.unsqueeze(0).expand_as(action_dist)

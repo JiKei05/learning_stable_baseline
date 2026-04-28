@@ -11,7 +11,7 @@ import torch as th
 from gymnasium import spaces
 
 from stable_baselines3.common.base_class import BaseAlgorithm
-from stable_baselines3.common.buffers import DictReplayBuffer, NStepReplayBuffer, ReplayBuffer
+from stable_baselines3.common.buffers import DictReplayBuffer, NStepReplayBuffer, ReplayBuffer, PrioritizedNStepReplayBuffer, PrioritizedReplayBuffer
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.noise import ActionNoise, VectorizedActionNoise
 from stable_baselines3.common.policies import BasePolicy
@@ -108,6 +108,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         use_sde_at_warmup: bool = False,
         sde_support: bool = True,
         supported_action_spaces: Optional[tuple[type[spaces.Space], ...]] = None,
+        prio_replay = False,
         duel: bool = False,
         noisy: bool = False,
         distributional: int = 0,
@@ -141,6 +142,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         self.replay_buffer_class = replay_buffer_class
         self.replay_buffer_kwargs = replay_buffer_kwargs or {}
         self.n_steps = n_steps
+        self.prio_replay = prio_replay
         self.duel = duel
         self.noisy = noisy
         self.distributional = distributional
@@ -188,6 +190,12 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             if isinstance(self.observation_space, spaces.Dict):
                 self.replay_buffer_class = DictReplayBuffer
                 assert self.n_steps == 1, "N-step returns are not supported for Dict observation spaces yet."
+            elif self.prio_replay and self.n_steps > 1: 
+                self.replay_buffer_class = PrioritizedNStepReplayBuffer
+                # Add required arguments for computing n-step returns
+                self.replay_buffer_kwargs.update({"n_steps": self.n_steps, "gamma": self.gamma})
+            elif self.prio_replay:
+                self.replay_buffer_class = PrioritizedReplayBuffer
             elif self.n_steps > 1:
                 self.replay_buffer_class = NStepReplayBuffer
                 # Add required arguments for computing n-step returns

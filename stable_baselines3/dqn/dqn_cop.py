@@ -14,7 +14,7 @@ from torch.nn import functional as F
 from stable_baselines3.common.noise import ActionNoise, VectorizedActionNoise
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, RolloutReturn, Schedule, TrainFreq, TrainFrequencyUnit
 from stable_baselines3.common.vec_env import VecEnv
-from stable_baselines3.common.buffers import ReplayBuffer, PrioritizedReplayBuffer
+from stable_baselines3.common.buffers import ReplayBuffer, PrioritizedReplayBuffer, PrioritizedNStepReplayBuffer
 from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
 from stable_baselines3.common.policies import BasePolicy
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
@@ -143,6 +143,7 @@ class DQN(OffPolicyAlgorithm):
             sde_support=False,
             supported_action_spaces=(spaces.Discrete,),
             support_multi_env=True,
+            prio_replay=prio_replay,
             duel=duel,
             noisy=noisy,
             distributional=distributional,
@@ -183,14 +184,13 @@ class DQN(OffPolicyAlgorithm):
         self.max_grad_norm = max_grad_norm
         # "epsilon" for the epsilon-greedy exploration
         self.exploration_rate = 0.0
-
-        #Switching to the prioritized buffer instead of the default replay buffer
-        if self.prio_replay: self.replay_buffer_class = PrioritizedReplayBuffer   
+  
 
         if _init_setup_model:
             self._setup_model()
 
         
+        print(self.replay_buffer_class)
 
     def _setup_model(self) -> None:
         super()._setup_model()
@@ -250,7 +250,13 @@ class DQN(OffPolicyAlgorithm):
             # For n-step replay, discount factor is gamma**n_steps (when no early termination)
             discounts = replay_data.discounts if replay_data.discounts is not None else self.gamma
             with th.no_grad():
-                if self.double:
+                if self.distributional:
+                    distribution = replay_data.observations if self.double else None
+
+                    target_q_values = dist(self.q_net_target(replay_data.next_observations), self.support, replay_data.rewards, self.Vmin, 
+                                          self.Vmax, self.gamma, self.distributional, batch_size, replay_data.dones, self.device, distribution)
+                    target_q_values = target_q_values.reshape(self.batch_size, self.distributional)
+                elif self.double:
                     # Selecting the best action a with maximum Q-value of next state with the policy network
                     actions = self.q_net(replay_data.next_observations)
                     best_actions = actions.argmax(dim=1, keepdim=True) 
@@ -258,11 +264,6 @@ class DQN(OffPolicyAlgorithm):
                     target_net_actions = self.q_net_target(replay_data.next_observations)
                     next_q_values = th.gather(target_net_actions, dim=1, index=best_actions)
                     target_q_values = replay_data.rewards + (1 - replay_data.dones) * discounts * next_q_values
-
-                elif self.distributional:
-                    target_q_values = dist(self.q_net_target(replay_data.next_observations), self.support, replay_data.rewards, self.Vmin, 
-                                          self.Vmax, self.gamma, self.distributional, batch_size, replay_data.dones, self.device)
-                    target_q_values = target_q_values.reshape(self.batch_size, self.distributional)
                 else:
                 # Compute the next Q-values using the target network                   
                     next_q_values = self.q_net_target(replay_data.next_observations) if self.use_second_net else self.q_net(replay_data.next_observations)
@@ -291,6 +292,7 @@ class DQN(OffPolicyAlgorithm):
             # print(current_q_values.size())
             # print('joi')
             # print(target_q_values.size())
+            reduct = 'batchmean' if self.distributional else 'mean'
 
             #TODO: Check this again
             if self.prio_replay:
@@ -298,12 +300,11 @@ class DQN(OffPolicyAlgorithm):
                 weights_unormalized: np.ndarray = (self.buffer_size * self.replay_buffer.batch_prob()) ** (-self.exponent_B)
                 weights: np.ndarray = weights_unormalized / weights_unormalized.max()
                 #Compute the TD-error in case of using PrioritizedReplayBuffer
-                td_error = target_q_values - current_q_values
+                td_error = -(target_q_values * th.log(current_q_values.clamp(min=1e-8))).sum(dim=1) if self.distributional else target_q_values - current_q_values
                 self.replay_buffer.update(td_error.detach().cpu().numpy())
-                loss_per_sample = self.loss_F(current_q_values, target_q_values, reduction='none') * th.from_numpy(weights).float().to(self.device)
+                loss_per_sample = self.loss_F(current_q_values, target_q_values, reduction=reduct) * th.from_numpy(weights).float().to(self.device)
 
-            # Compute Huber loss (less sensitive to outliers) 
-            reduct = 'batchmean' if self.distributional else 'mean'   
+            # Compute Huber loss (less sensitive to outliers)    
             loss = loss_per_sample.sum() if self.prio_replay else self.loss_F(current_q_values, target_q_values, reduction=reduct)
             #print(loss)
             losses.append(loss.item())

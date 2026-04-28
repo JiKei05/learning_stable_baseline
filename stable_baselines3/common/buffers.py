@@ -1078,3 +1078,166 @@ class NStepReplayBuffer(ReplayBuffer):
             rewards=self.to_torch(n_step_returns),
             discounts=self.to_torch(target_q_discounts),
         )
+    
+
+class PrioritizedNStepReplayBuffer(ReplayBuffer):
+    observations: np.ndarray
+    next_observations: np.ndarray
+    actions: np.ndarray
+    rewards: np.ndarray
+    dones: np.ndarray
+    timeouts: np.ndarray
+    priorities: np.ndarray
+    weight_change = 0
+
+
+
+    def __init__(
+            self, 
+            buffer_size, 
+            observation_space, 
+            action_space, 
+            device = "auto", 
+            n_envs = 1, 
+            optimize_memory_usage = False, 
+            handle_timeout_termination = True,
+            n_steps=1,
+            gamma=0.99):
+        super().__init__(
+            buffer_size, 
+            observation_space, 
+            action_space, 
+            device, 
+            n_envs=n_envs,
+            optimize_memory_usage=optimize_memory_usage,
+            handle_timeout_termination=handle_timeout_termination)
+
+        self.n_steps = n_steps
+        self.gamma = gamma
+        self.priorities = np.zeros((self.buffer_size, self.n_envs))
+        self.batch_probabilities = None
+        self.current_inds = None
+
+    def add(
+        self,
+        obs: np.ndarray,
+        next_obs: np.ndarray,
+        action: np.ndarray,
+        reward: np.ndarray,
+        done: np.ndarray,
+        infos: list[dict[str, Any]],
+    ) -> None:
+        # Reshape needed when using multiple envs with discrete observations
+        # as numpy cannot broadcast (n_discrete,) to (n_discrete, 1)
+        if isinstance(self.observation_space, spaces.Discrete):
+            obs = obs.reshape((self.n_envs, *self.obs_shape))
+            next_obs = next_obs.reshape((self.n_envs, *self.obs_shape))
+
+
+        prio = np.ones(self.n_envs) if self.size() == 0 else np.full(self.n_envs, self.priorities.max()) #prio = 1 else max
+
+        # Reshape to handle multi-dim and discrete action spaces, see GH #970 #1392
+        action = action.reshape((self.n_envs, self.action_dim))
+
+        # Copy to avoid modification by reference
+        self.observations[self.pos] = np.array(obs)
+
+        if self.optimize_memory_usage:
+            self.observations[(self.pos + 1) % self.buffer_size] = np.array(next_obs)
+        else:
+            self.next_observations[self.pos] = np.array(next_obs)
+
+        self.actions[self.pos] = np.array(action)
+        self.rewards[self.pos] = np.array(reward)
+        self.dones[self.pos] = np.array(done)
+        self.priorities[self.pos] = np.array(prio)
+
+
+        if self.handle_timeout_termination:
+            self.timeouts[self.pos] = np.array([info.get("TimeLimit.truncated", False) for info in infos])
+
+        self.pos += 1
+        if self.pos == self.buffer_size:
+            self.full = True
+            self.pos = 0
+
+
+    def sample(self, batch_size: int, *args, env: Optional[VecNormalize] = None) -> PrioritizedBufferSamples:
+        #getting the exponent, args was used because I didn't want to change much of the sample function called in method train
+        exponent_a: float = args[0]
+
+        #calculating the probability of all the current experiences
+        prio = self.priorities[:self.pos] if not self.full else self.priorities #because it was initialized with 0s, capped at the current position
+        prio_sum: float = np.sum(prio ** exponent_a)
+        probability = (prio ** exponent_a)/prio_sum
+
+        #getting the index of chosen experiences for the batch
+        flat = probability.flatten() #have to flatten because can't use multinomial with 2D arrays
+        count = np.random.multinomial(batch_size, flat).reshape(probability.shape)
+        chosen = np.nonzero(count)
+        self.current_inds = chosen
+        batch_inds = np.array(chosen[0])
+        env_indices = np.array(chosen[1])
+
+        self.batch_probabilities = self.priorities[batch_inds, env_indices]#will change later, this is for accessing the batch probabilities for calculating weights
+
+        # Note: the self.pos index is dangerous (will overlap two different episodes when buffer is full)
+        # so we set self.pos-1 to truncated=True (temporarily) if done=False and truncated=False
+        last_valid_index = self.pos - 1
+        original_timeout_values = self.timeouts[last_valid_index].copy()
+        self.timeouts[last_valid_index] = np.logical_or(original_timeout_values, np.logical_not(self.dones[last_valid_index]))
+
+        # Compute n-step indices with wrap-around
+        steps = np.arange(self.n_steps).reshape(1, -1)  # shape: [1, n_steps]
+        indices = (batch_inds[:, None] + steps) % self.buffer_size  # shape: [batch, n_steps]
+
+        # Retrieve sequences of transitions
+        rewards_seq = self._normalize_reward(self.rewards[indices, env_indices[:, None]], env)  # [batch, n_steps]
+        dones_seq = self.dones[indices, env_indices[:, None]]  # [batch, n_steps]
+        truncated_seq = self.timeouts[indices, env_indices[:, None]]  # [batch, n_steps]
+
+        # Compute masks: 1 until first done/truncation (inclusive)
+        done_or_truncated = np.logical_or(dones_seq, truncated_seq)
+        done_idx = done_or_truncated.argmax(axis=1)
+        # If no done/truncation, keep full sequence
+        has_done_or_truncated = done_or_truncated.any(axis=1)
+        done_idx = np.where(has_done_or_truncated, done_idx, self.n_steps - 1)
+
+        mask = np.arange(self.n_steps).reshape(1, -1) <= done_idx[:, None]  # shape: [batch, n_steps]
+        # Compute discount factors for bootstrapping (using target Q-Value)
+        # It is gamma ** n_steps by default but should be adjusted in case of early termination/truncation.
+        target_q_discounts = self.gamma ** mask.sum(axis=1, keepdims=True).astype(np.float32)  # [batch, 1]
+
+        # Apply discount
+        discounts = self.gamma ** np.arange(self.n_steps, dtype=np.float32).reshape(1, -1)  # [1, n_steps]
+        discounted_rewards = rewards_seq * discounts * mask
+        n_step_returns = discounted_rewards.sum(axis=1, keepdims=True)  # [batch, 1]
+
+        # Compute indices of next_obs/done at the final point of the n-step transition
+        last_indices = (batch_inds + done_idx) % self.buffer_size
+        next_obs = self._normalize_obs(self.next_observations[last_indices, env_indices], env)
+        next_dones = self.dones[last_indices, env_indices][:, None].astype(np.float32)
+        next_timeouts = self.timeouts[last_indices, env_indices][:, None].astype(np.float32)
+        final_dones = next_dones * (1.0 - next_timeouts)
+
+        # Revert back tmp changes to avoid sampling across episodes
+        self.timeouts[last_valid_index] = original_timeout_values
+
+        # Gather observations and actions
+        obs = self._normalize_obs(self.observations[batch_inds, env_indices], env)
+        actions = self.actions[batch_inds, env_indices]
+
+        return ReplayBufferSamples(
+            observations=self.to_torch(obs),  # type: ignore[arg-type]
+            actions=self.to_torch(actions),
+            next_observations=self.to_torch(next_obs),  # type: ignore[arg-type]
+            dones=self.to_torch(final_dones),
+            rewards=self.to_torch(n_step_returns),
+            discounts=self.to_torch(target_q_discounts),
+        )
+    
+    def batch_prob(self): return self.batch_probabilities
+
+    def update(self, td_error):
+        #this is to update the priorities after calculating td_error
+        self.priorities[self.current_inds[0], self.current_inds[1]] = np.absolute(td_error.squeeze())

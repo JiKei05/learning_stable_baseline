@@ -238,7 +238,10 @@ def duel_mlp(
             pre_linear_module: Optional[list[type[nn.Module]]] = None,
             post_linear_module: Optional[list[type[nn.Module]]] = None,
             linear_layer: type[nn.Linear] = nn.Linear,
+            distributional: int = 0
         ) -> list[nn.Module]:   
+    
+    if distributional: output_dim = output_dim * distributional
            
     pre_linear_modules = pre_linear_module or []
     post_linear_modules = post_linear_module or []
