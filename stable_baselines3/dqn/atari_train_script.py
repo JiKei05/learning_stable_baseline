@@ -9,7 +9,7 @@ import gymnasium as gym
 import numpy as np
 from stable_baselines3.dqn.dqn_cop import DQN
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback, CallbackList
-from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv, VecTransposeImage
+from stable_baselines3.common.vec_env import VecFrameStack, DummyVecEnv, VecTransposeImage,SubprocVecEnv
 from stable_baselines3.common.atari_wrappers import AtariWrapper
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.logger import configure
@@ -36,7 +36,7 @@ def setup_env(config: Dict[str, Any], seed: int, monitor_dir: str = None):
     n_envs = config['env']['n_envs']
     atari = config['env']['atari']
     
-    env = DummyVecEnv([
+    env = SubprocVecEnv([
         make_env(env_id, i, seed, monitor_dir, atari) 
         for i in range(n_envs)
     ])
