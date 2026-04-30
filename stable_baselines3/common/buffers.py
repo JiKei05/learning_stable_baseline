@@ -318,6 +318,10 @@ class ReplayBuffer(BaseBuffer):
         else:
             next_obs = self._normalize_obs(self.next_observations[batch_inds, env_indices, :], env)
 
+        print(next_obs.size)
+        print('ble')
+        print(batch_inds.size)
+
         data = (
             self._normalize_obs(self.observations[batch_inds, env_indices, :], env),
             self.actions[batch_inds, env_indices, :],
@@ -394,7 +398,6 @@ class PrioritizedReplayBuffer(ReplayBuffer):
             obs = obs.reshape((self.n_envs, *self.obs_shape))
             next_obs = next_obs.reshape((self.n_envs, *self.obs_shape))
 
-
         prio = np.ones(self.n_envs) if self.size() == 0 else np.full(self.n_envs, self.priorities.max()) #prio = 1 else max
 
         # Reshape to handle multi-dim and discrete action spaces, see GH #970 #1392
@@ -448,6 +451,10 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         else:
             next_obs = self._normalize_obs(self.next_observations[batch_inds, env_indices, :], env)
 
+        # print(next_obs.size)
+        # print('ble')
+        # print(batch_inds.size)
+
         data = (
             self._normalize_obs(self.observations[batch_inds, env_indices, :], env),
             self.actions[batch_inds, env_indices, :],
@@ -456,6 +463,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
             # deactivated by default (timeouts is initialized as an array of False)
             (self.dones[batch_inds, env_indices] * (1 - self.timeouts[batch_inds, env_indices])).reshape(-1, 1),
             self._normalize_reward(self.rewards[batch_inds, env_indices].reshape(-1, 1), env),
+            batch_inds.size,
         )
 
         return PrioritizedBufferSamples(*tuple(map(self.to_torch, data)))
@@ -1227,13 +1235,14 @@ class PrioritizedNStepReplayBuffer(ReplayBuffer):
         obs = self._normalize_obs(self.observations[batch_inds, env_indices], env)
         actions = self.actions[batch_inds, env_indices]
 
-        return ReplayBufferSamples(
+        return PrioritizedBufferSamples(
             observations=self.to_torch(obs),  # type: ignore[arg-type]
             actions=self.to_torch(actions),
             next_observations=self.to_torch(next_obs),  # type: ignore[arg-type]
             dones=self.to_torch(final_dones),
             rewards=self.to_torch(n_step_returns),
             discounts=self.to_torch(target_q_discounts),
+            batch_size=self.to_torch(batch_inds.size)
         )
     
     def batch_prob(self): return self.batch_probabilities

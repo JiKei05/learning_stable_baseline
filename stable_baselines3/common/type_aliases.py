@@ -61,6 +61,7 @@ class PrioritizedBufferSamples(NamedTuple):
     next_observations: th.Tensor
     dones: th.Tensor
     rewards: th.Tensor
+    batch_size: th.Tensor
     # For n-step replay buffer
     discounts: Optional[th.Tensor] = None
 

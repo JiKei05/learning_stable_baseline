@@ -642,6 +642,9 @@ def get_system_info(print_info: bool = True) -> tuple[dict[str, str], str]:
 def dist(next_dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size, done, device, dist = None):   
     delta_z = (Vmax - Vmin) / (N_atoms - 1)
 
+    # print(dist.size())
+    # print(support.size())
+
     if dist is not None:
         distribution = dist * support
 
@@ -659,6 +662,10 @@ def dist(next_dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size,
     l = b.floor().long()
     offset = th.linspace(0, ((batch_size-1) * N_atoms), batch_size).long().\
                         unsqueeze(1).expand(batch_size, N_atoms).to(device)
+
+    # print(next_dist.size())
+    # print('yo')
+    # print(offset.size())
 
     projected_dist = th.zeros_like(action_dist)
 

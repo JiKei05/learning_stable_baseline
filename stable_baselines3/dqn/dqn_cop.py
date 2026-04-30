@@ -251,11 +251,15 @@ class DQN(OffPolicyAlgorithm):
             discounts = replay_data.discounts if replay_data.discounts is not None else self.gamma
             with th.no_grad():
                 if self.distributional:
-                    distribution = replay_data.observations if self.double else None
+                    distribution = self.q_net_target(replay_data.observations) if self.double else None
+                    if self.prio_replay: batch_size = replay_data.batch_size
+
+                    # print(replay_data.next_observations.size())
+                    # print('bet')
 
                     target_q_values = dist(self.q_net_target(replay_data.next_observations), self.support, replay_data.rewards, self.Vmin, 
                                           self.Vmax, self.gamma, self.distributional, batch_size, replay_data.dones, self.device, distribution)
-                    target_q_values = target_q_values.reshape(self.batch_size, self.distributional)
+                    target_q_values = target_q_values.reshape(batch_size, self.distributional)
                 elif self.double:
                     # Selecting the best action a with maximum Q-value of next state with the policy network
                     actions = self.q_net(replay_data.next_observations)
