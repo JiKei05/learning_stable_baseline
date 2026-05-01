@@ -211,10 +211,65 @@ def get_gpu_allocation(n_gpus: int, config_names: List[str]) -> List[int]:
     
     return gpu_assignments
 
+def update_dqn_config(
+    config_path: str,
+    prio_replay: bool = None,
+    duel: bool = None,
+    double: bool = None,
+    noisy: bool = None,
+    distributional: int = None,
+    n_steps: int = None,
+    config_name: str = "dqn_baseline"
+):
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+
+    params = config[config_name]["params"]
+
+    if prio_replay is not None:
+        params["prio_replay"] = prio_replay
+    if duel is not None:
+        params["duel"] = duel
+    if noisy is not None:
+        params["noisy"] = noisy
+    if distributional is not None:
+        params["distributional"] = distributional
+    if n_steps is not None:
+        params["n_steps"] = n_steps
+    if double is not None:
+        params["double"] = double
+
+    with open(config_path, "w") as f:
+        yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True, help="Path to config file")
+    parser.add_argument('--distributional', type=int, default=0)
+    parser.add_argument('--n_steps', type=int, default=1)
+    parser.add_argument('--prio', type=str2bool, default=False)
+    parser.add_argument('--duel', type=str2bool, default=False)
+    parser.add_argument('--double', type=str2bool, default=False) 
+    parser.add_argument('--noisy', type=str2bool, default=False)
     args = parser.parse_args()
+
+    update_dqn_config(config_path=args.config, 
+                      prio_replay=args.prio,
+                      duel=args.duel,
+                      double=args.double,
+                      noisy=args.noisy,
+                      distributional=args.distributional,
+                      n_steps=args.n_steps)
     
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
