@@ -226,7 +226,7 @@ def update_dqn_config(
         config = yaml.safe_load(f)
 
     params = config[config_name]["params"]
-    logging = config[logging]
+    logging = config["logging"]
 
     if prio_replay is not None:
         params["prio_replay"] = prio_replay
