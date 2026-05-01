@@ -219,12 +219,14 @@ def update_dqn_config(
     noisy: bool = None,
     distributional: int = None,
     n_steps: int = None,
-    config_name: str = "dqn_baseline"
+    config_name: str = "dqn_baseline",
+    run_name: str = None
 ):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
     params = config[config_name]["params"]
+    logging = config[logging]
 
     if prio_replay is not None:
         params["prio_replay"] = prio_replay
@@ -261,6 +263,7 @@ def main():
     parser.add_argument('--duel', type=str2bool, default=False)
     parser.add_argument('--double', type=str2bool, default=False) 
     parser.add_argument('--noisy', type=str2bool, default=False)
+    parser.add_argument('--run_name', required=True, type=str)
     args = parser.parse_args()
 
     update_dqn_config(config_path=args.config, 
