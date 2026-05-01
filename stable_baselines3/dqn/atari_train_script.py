@@ -240,6 +240,8 @@ def update_dqn_config(
         params["n_steps"] = n_steps
     if double is not None:
         params["double"] = double
+    if run_name is not None:
+        logging["run_tag"] = run_name
 
     with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
@@ -272,7 +274,8 @@ def main():
                       double=args.double,
                       noisy=args.noisy,
                       distributional=args.distributional,
-                      n_steps=args.n_steps)
+                      n_steps=args.n_steps,
+                      run_name=args.run_name)
     
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
