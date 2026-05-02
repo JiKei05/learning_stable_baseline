@@ -251,7 +251,7 @@ class DQN(OffPolicyAlgorithm):
             discounts = replay_data.discounts if replay_data.discounts is not None else self.gamma
             with th.no_grad():
                 if self.distributional:
-                    distribution = self.q_net_target(replay_data.observations) if self.double else None
+                    distribution = self.q_net(replay_data.observations) if self.double else None
                     if self.prio_replay: batch_size = replay_data.batch_size
 
                     # print(replay_data.next_observations.size())

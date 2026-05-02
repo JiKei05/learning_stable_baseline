@@ -72,7 +72,7 @@ class QNetwork(BasePolicy):
         else: self.q_net = nn.Sequential(*q_net) 
 
         if self.distributional:
-            self.Vmin = 0
+            self.Vmin = -10
             self.Vmax = 10
             self.support = th.linspace(self.Vmin, self.Vmax, self.distributional)
 
