@@ -220,7 +220,8 @@ def update_dqn_config(
     distributional: int = None,
     n_steps: int = None,
     config_name: str = "dqn_baseline",
-    run_name: str = None
+    run_name: str = None,
+    log_dir: str = None,
 ):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -242,6 +243,8 @@ def update_dqn_config(
         params["double"] = double
     if run_name is not None:
         logging["run_tag"] = run_name
+    if log_dir is not None:
+        logging["log_dir"] = log_dir
 
     with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
@@ -266,6 +269,7 @@ def main():
     parser.add_argument('--double', type=str2bool, default=False) 
     parser.add_argument('--noisy', type=str2bool, default=False)
     parser.add_argument('--run_name', required=True, type=str)
+    parser.add_argument('--log_dir', required=True)
     args = parser.parse_args()
 
     update_dqn_config(config_path=args.config, 
@@ -275,7 +279,8 @@ def main():
                       noisy=args.noisy,
                       distributional=args.distributional,
                       n_steps=args.n_steps,
-                      run_name=args.run_name)
+                      run_name=args.run_name,
+                      log_dir=args.log_dir)
     
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
