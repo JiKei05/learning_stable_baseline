@@ -222,12 +222,14 @@ def update_dqn_config(
     config_name: str = "dqn_baseline",
     run_name: str = None,
     log_dir: str = None,
+    env_name: str = None,
 ):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
     params = config[config_name]["params"]
     logging = config["logging"]
+    env = config["env"]
 
     if prio_replay is not None:
         params["prio_replay"] = prio_replay
@@ -245,6 +247,8 @@ def update_dqn_config(
         logging["run_tag"] = run_name
     if log_dir is not None:
         logging["log_dir"] = log_dir
+    if env is not None:
+        env["id"] = env_name
 
     with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
@@ -269,7 +273,8 @@ def main():
     parser.add_argument('--double', type=str2bool, default=False) 
     parser.add_argument('--noisy', type=str2bool, default=False)
     parser.add_argument('--run_name', required=True, type=str)
-    parser.add_argument('--log_dir', required=True)
+    parser.add_argument('--log_dir', type=str, required=True)
+    parser.add_argument('--env', type=str, required=True)
     args = parser.parse_args()
 
     update_dqn_config(config_path=args.config, 
@@ -280,7 +285,8 @@ def main():
                       distributional=args.distributional,
                       n_steps=args.n_steps,
                       run_name=args.run_name,
-                      log_dir=args.log_dir)
+                      log_dir=args.log_dir,
+                      env_name=args.env)
     
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
