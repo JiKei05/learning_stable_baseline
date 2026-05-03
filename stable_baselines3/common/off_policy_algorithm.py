@@ -113,6 +113,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         noisy: bool = False,
         distributional: int = 0,
         exponent_B: Optional[float] = 0.4,
+        l_norm: bool = False,
     ):
         super().__init__(
             policy=policy,
@@ -148,6 +149,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         self.distributional = distributional
         self.exponent_B = exponent_B
         self.exponent_B0 = exponent_B
+        self.l_norm = l_norm
 
         # Save train freq parameter, will be converted later to TrainFreq object
         self.train_freq = train_freq
@@ -227,6 +229,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             duel = self.duel,
             noisy = self.noisy,
             distributional = self.distributional,
+            l_norm = self.l_norm,
             #device = self.device,
             **self.policy_kwargs,
         )

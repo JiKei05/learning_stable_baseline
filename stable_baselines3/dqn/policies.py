@@ -11,6 +11,7 @@ from stable_baselines3.common.torch_layers import (
     CombinedExtractor,
     FlattenExtractor,
     NatureCNN,
+    NormNatureCNN,
     NoisyLinear,
     create_mlp,
     duel_mlp,
@@ -45,7 +46,9 @@ class QNetwork(BasePolicy):
         net_arch: Optional[list[int]] = None,
         activation_fn: type[nn.Module] = nn.ReLU,
         normalize_images: bool = True,
+        l_norm: bool = False,
     ) -> None:
+
         super().__init__(
             observation_space,
             action_space,
@@ -160,7 +163,11 @@ class DQNPolicy(BasePolicy):
         noisy: bool = False,
         #device: Union[th.device, str] = "auto",
         distributional: int = 0,
+        l_norm: bool = False,
     ) -> None:
+        
+        if l_norm: features_extractor_class = NormNatureCNN
+
         super().__init__(
             observation_space,
             action_space,
@@ -172,7 +179,7 @@ class DQNPolicy(BasePolicy):
         )
 
         if net_arch is None:
-            if features_extractor_class == NatureCNN:
+            if features_extractor_class == NatureCNN or features_extractor_class == NormNatureCNN:
                 net_arch = []
             else:
                 net_arch = [64, 64]
@@ -182,6 +189,7 @@ class DQNPolicy(BasePolicy):
         self.duel = duel #activate duel network
         self.noisy = NoisyLinear if noisy else nn.Linear
         self.distributional = distributional
+        self.l_norm = l_norm
 
         self.net_args = {
             "observation_space": self.observation_space,
@@ -233,7 +241,7 @@ class DQNPolicy(BasePolicy):
         net_args = self._update_features_extractor(self.net_args, features_extractor=None)
         print('bruv')
         print(net_args)
-        return QNetwork(distributional = self.distributional, duel=self.duel, linear_layer=self.noisy, **net_args).to(self.device)
+        return QNetwork(distributional = self.distributional, duel=self.duel, linear_layer=self.noisy, l_norm=self.l_norm, **net_args).to(self.device)
 
     def forward(self, obs: PyTorchObs, deterministic: bool = True) -> th.Tensor:
         return self._predict(obs, deterministic=deterministic)
@@ -310,6 +318,7 @@ class CnnPolicy(DQNPolicy):
         noisy: bool = False,
         #device: Union[th.device, str] = "auto", 
         distributional: int = 0,
+        l_norm: bool = False,
     ) -> None:
         super().__init__(
             observation_space,
@@ -325,7 +334,8 @@ class CnnPolicy(DQNPolicy):
             duel,
             noisy,
             #device,
-            distributional,
+            distributional=distributional,
+            l_norm=l_norm,
         )
 
 

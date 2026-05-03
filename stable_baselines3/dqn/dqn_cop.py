@@ -117,6 +117,7 @@ class DQN(OffPolicyAlgorithm):
         noisy: bool = False,
         distributional: int = 0,
         double: bool = False,
+        l_norm: bool = False,
     ) -> None:
         super().__init__(
             policy,
@@ -148,6 +149,7 @@ class DQN(OffPolicyAlgorithm):
             noisy=noisy,
             distributional=distributional,
             exponent_B=exponent_B,
+            l_norm=l_norm,
         )
 
         self.use_second_net = use_second_net
