@@ -219,6 +219,7 @@ def update_dqn_config(
     noisy: bool = None,
     distributional: int = None,
     n_steps: int = None,
+    l_norm: bool = None,
     config_name: str = "dqn_baseline",
     run_name: str = None,
     log_dir: str = None,
@@ -243,6 +244,8 @@ def update_dqn_config(
         params["n_steps"] = n_steps
     if double is not None:
         params["double"] = double
+    if l_norm is not None:
+        params["l_norm"] = l_norm
     if run_name is not None:
         logging["run_tag"] = run_name
     if log_dir is not None:
@@ -272,6 +275,7 @@ def main():
     parser.add_argument('--duel', type=str2bool, default=False)
     parser.add_argument('--double', type=str2bool, default=False) 
     parser.add_argument('--noisy', type=str2bool, default=False)
+    parser.add_argument('--l_norm', type=str2bool, default=False)
     parser.add_argument('--run_name', required=True, type=str)
     parser.add_argument('--log_dir', type=str, required=True)
     parser.add_argument('--env', type=str, required=True)
@@ -284,6 +288,7 @@ def main():
                       noisy=args.noisy,
                       distributional=args.distributional,
                       n_steps=args.n_steps,
+                      l_norm=args.l_norm,
                       run_name=args.run_name,
                       log_dir=args.log_dir,
                       env_name=args.env)
