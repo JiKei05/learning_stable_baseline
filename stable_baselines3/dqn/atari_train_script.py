@@ -234,6 +234,7 @@ def update_dqn_config(
 
     if prio_replay is not None:
         params["prio_replay"] = prio_replay
+        if prio_replay: params["earning_starts"] = 20000
     if duel is not None:
         params["duel"] = duel
     if noisy is not None:
