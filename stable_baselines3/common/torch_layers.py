@@ -221,6 +221,7 @@ def create_mlp(
     post_linear_modules: Optional[list[type[nn.Module]]] = None,
     linear_layer: type[nn.Linear] = nn.Linear,
     distributional: int = 0,
+    l_norm: bool = False,
 
 ) -> list[nn.Module]:
     """
@@ -251,6 +252,8 @@ def create_mlp(
     
     pre_linear_modules = pre_linear_modules or []
     post_linear_modules = post_linear_modules or []
+
+    if l_norm: post_linear_modules = post_linear_modules + [nn.LayerNorm]
 
     if distributional: output_dim = output_dim * distributional
 
@@ -302,13 +305,16 @@ def duel_mlp(
             pre_linear_module: Optional[list[type[nn.Module]]] = None,
             post_linear_module: Optional[list[type[nn.Module]]] = None,
             linear_layer: type[nn.Linear] = nn.Linear,
-            distributional: int = 0
+            distributional: int = 0,
+            l_norm: bool = False,
         ) -> list[nn.Module]:   
     
     if distributional: output_dim = output_dim * distributional
            
     pre_linear_modules = pre_linear_module or []
     post_linear_modules = post_linear_module or []
+
+    if l_norm: post_linear_modules = post_linear_modules + [nn.LayerNorm]
 
     modules = []
     print(len(net_arch))

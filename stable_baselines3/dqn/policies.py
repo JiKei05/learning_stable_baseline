@@ -67,7 +67,7 @@ class QNetwork(BasePolicy):
         self.action_dim = int(self.action_space.n)  # number of actions
         self.distributional = distributional
         #self.device = device
-        q_net = duel_mlp(self.features_dim, self.action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer, distributional=self.distributional) if self.duel else create_mlp(self.features_dim, self.action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer, distributional=self.distributional)
+        q_net = duel_mlp(self.features_dim, self.action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer, distributional=self.distributional, l_norm=l_norm) if self.duel else create_mlp(self.features_dim, self.action_dim, self.net_arch, self.activation_fn, linear_layer=self.linear_layer, distributional=self.distributional, l_norm=l_norm)
         if self.duel:
             self.q_net = q_net[0]
             self.adv = q_net[1]
