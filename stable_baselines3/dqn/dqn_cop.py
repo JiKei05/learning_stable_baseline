@@ -260,7 +260,7 @@ class DQN(OffPolicyAlgorithm):
                     # print('bet')
 
                     target_q_values = dist(self.q_net_target(replay_data.next_observations), self.support, replay_data.rewards, self.Vmin, 
-                                          self.Vmax, self.gamma, self.distributional, batch_size, replay_data.dones, self.device, distribution)
+                                          self.Vmax, discounts, self.distributional, batch_size, replay_data.dones, self.device, distribution)
                     target_q_values = target_q_values.reshape(batch_size, self.distributional)
                 elif self.double:
                     # Selecting the best action a with maximum Q-value of next state with the policy network
@@ -306,12 +306,29 @@ class DQN(OffPolicyAlgorithm):
                 weights_unormalized: np.ndarray = (self.buffer_size * self.replay_buffer.batch_prob()) ** (-self.exponent_B)
                 weights: np.ndarray = weights_unormalized / weights_unormalized.max()
                 #Compute the TD-error in case of using PrioritizedReplayBuffer
-                td_error = -(target_q_values * th.log(current_q_values.clamp(min=1e-8))).sum(dim=1) if self.distributional else target_q_values - current_q_values
-                self.replay_buffer.update(td_error.detach().cpu().numpy())
-                loss_per_sample = self.loss_F(current_q_values, target_q_values, reduction=reduct) * th.from_numpy(weights).float().to(self.device)
+                if self.distributional:
+                    loss_per_sample = F.kl_div(
+                        current_q_values,
+                        target_q_values,
+                        reduction="none"
+                    ).sum(dim=1)
 
-            # Compute Huber loss (less sensitive to outliers)    
-            loss = loss_per_sample.sum() if self.prio_replay else self.loss_F(current_q_values, target_q_values, reduction=reduct)
+                    weights = th.as_tensor(weights, device=self.device, dtype=loss_per_sample.dtype)
+                    td_error = -(target_q_values * current_q_values).sum(dim=1)
+                    self.replay_buffer.update(td_error.detach().cpu().numpy())
+                else:    
+                    td_error = target_q_values - current_q_values
+                    self.replay_buffer.update(td_error.detach().cpu().numpy())
+                    loss_per_sample = F.smooth_l1_loss(current_q_values, target_q_values, reduction='none') * th.from_numpy(weights).float().to(self.device)
+
+            # Compute Huber loss (less sensitive to outliers) 
+            if self.prio_replay and self.distributional:
+                loss = (weights * loss_per_sample).mean()
+            elif self.prio_replay:
+                loss = loss_per_sample.mean()
+            else: 
+                loss = self.loss_F(current_q_values, target_q_values, reduction=reduct)
+            #loss = loss_per_sample.sum() if self.prio_replay else self.loss_F(current_q_values, target_q_values, reduction=reduct)
             #print(loss)
             losses.append(loss.item())
 
