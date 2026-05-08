@@ -222,6 +222,25 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 **replay_buffer_kwargs,
             )
 
+        
+
+        def replay_buffer_memory_mb(replay_buffer):
+            total_bytes = 0
+
+            for name, value in replay_buffer.__dict__.items():
+                if isinstance(value, np.ndarray):
+                    print(f"{name:25s} {str(value.shape):25s} {value.dtype}  {value.nbytes / 1024**2:.2f} MB")
+                    total_bytes += value.nbytes
+
+            print("-" * 80)
+            print(f"Total NumPy replay buffer memory: {total_bytes / 1024**2:.2f} MB")
+            print(f"Total NumPy replay buffer memory: {total_bytes / 1024**3:.2f} GB")
+
+            return total_bytes
+        
+        replay_buffer_memory_mb(self.replay_buffer)
+
+
         self.policy = self.policy_class(
             self.observation_space,
             self.action_space,
