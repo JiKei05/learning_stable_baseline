@@ -45,6 +45,7 @@ def setup_env(config: Dict[str, Any], seed: int, monitor_dir: str = None):
     if stack != 0 :
         env = VecFrameStack(env, n_stack=stack)
     
+
     return env
 
 def setup_logger(log_dir: str):

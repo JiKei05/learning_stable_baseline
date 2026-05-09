@@ -64,6 +64,8 @@ class BaseBuffer(ABC):
         self.device = get_device(device)
         self.n_envs = n_envs
 
+
+
     @staticmethod
     def swap_and_flatten(arr: np.ndarray) -> np.ndarray:
         """
@@ -1126,6 +1128,7 @@ class PrioritizedNStepReplayBuffer(ReplayBuffer):
         self.batch_probabilities = None
         self.current_inds = None
 
+        
     def add(
         self,
         obs: np.ndarray,

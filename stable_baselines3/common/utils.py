@@ -650,8 +650,8 @@ def dist(next_dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size,
 
     next_distribution = next_dist * support
     actions = distribution.sum(2).max(1)[1] if dist is not None else next_distribution.sum(2).max(1)[1]
-    batch_idx = th.arange(next_distribution.size(0))
-    action_dist = next_distribution[batch_idx, actions]
+    batch_idx = th.arange(next_distribution.size(0), device=device)
+    action_dist = next_dist[batch_idx, actions]
     #print(rewards.size())
     rewards = rewards.expand_as(action_dist)
     support = support.unsqueeze(0).expand_as(action_dist)
@@ -670,7 +670,7 @@ def dist(next_dist, support, rewards, Vmin, Vmax, discount, N_atoms, batch_size,
     projected_dist = th.zeros_like(action_dist)
 
     lower_indices = (l + offset).view(-1)
-    lower_values = (action_dist*(u.float()-b)).view(-1)
+    lower_values = (action_dist * (u.float() - b + (l == u).float())).view(-1)
     upper_indices = (u + offset).view(-1)
     upper_values = (action_dist*(b-l.float())).view(-1)
 

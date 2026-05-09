@@ -93,11 +93,17 @@ class QNetwork(BasePolicy):
         if self.duel:
             x_adv = self.adv(ret)
             x_val = self.val(ret)
-            ret = x_val + x_adv - th.mean(x_adv, dim=1, keepdim=True)
+            if self.distributional:
+                x_adv = x_adv.view(-1, self.action_dim, self.distributional)
+                x_val = x_val.view(-1, 1, self.distributional)
+                ret = x_val + x_adv - th.mean(x_adv, dim=1, keepdim=True)
+                ret = th.softmax(ret, dim=2)  
+            else: ret = x_val + x_adv - th.mean(x_adv, dim=1, keepdim=True)
 
-        if self.distributional != 0:
-            ret = ret.view((-1, self.action_dim, self.distributional))   
-            ret = th.softmax(ret, dim=2)  
+        else:
+            if self.distributional != 0:
+                ret = ret.view((-1, self.action_dim, self.distributional))   
+                ret = th.softmax(ret, dim=2)  
 
         return ret
 
