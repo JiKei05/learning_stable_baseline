@@ -310,7 +310,7 @@ def duel_mlp(
         ) -> list[nn.Module]:   
     
     if distributional: output_dim = output_dim * distributional
-           
+    val_out = distributional if distributional else 1
     pre_linear_modules = pre_linear_module or []
     post_linear_modules = post_linear_module or []
 
