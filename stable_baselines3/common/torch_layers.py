@@ -362,7 +362,7 @@ def duel_mlp(
             modules.append(module(last_layer_dim))
 
         x_adv = [linear_layer(last_layer_dim, output_dim, bias=with_bias)]
-        x_val = [linear_layer(last_layer_dim, 1, bias=with_bias)]
+        x_val = [linear_layer(last_layer_dim, distributional, bias=with_bias)]
 
     if squash_output:
         x_adv.append(nn.Tanh())
